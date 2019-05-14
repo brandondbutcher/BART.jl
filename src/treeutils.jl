@@ -1,32 +1,32 @@
 ###############################################################################
-##### SoftTree utility functions
+##### Tree utility functions
 ###############################################################################
 
-function root(tree::SoftTree)
+function root(tree::Tree)
   tree.tree[1]
 end
 
-function leftchild(node::SoftBranch, tree::SoftTree)
-  tree.tree[node.leftchild]
+function leftchild(branch::Branch, tree::Tree)
+  tree.tree[branch.leftchild]
 end
 
-function rightchild(node::SoftBranch, tree::SoftTree)
-  tree.tree[node.rightchild]
+function rightchild(branch::Branch, tree::Tree)
+  tree.tree[branch.rightchild]
 end
 
-function leafnodes(tree::SoftTree)
-  leafindices = findall(x -> typeof(x) == SoftLeaf, tree.tree)
+function leafnodes(tree::Tree)
+  leafindices = findall(x -> typeof(x) == Leaf, tree.tree)
   tree.tree[leafindices]
 end
 
-function probleft(x::Vector{Float64}, node::SoftBranch, tree::SoftTree)
-  1 / (1 + exp((x[node.var] - node.cut) / tree.tau))
+function probleft(x::Vector{Float64}, branch::Branch, tree::Tree)
+  1 / (1 + exp((x[branch.var] - branch.cut) / tree.tau))
 end
 
-function leafprob(x::Vector{Float64}, tree::SoftTree)
+function leafprob(x::Vector{Float64}, tree::Tree)
   prob = Float64[]
   rootnode = root(tree)
-  if typeof(rootnode) == SoftLeaf
+  if typeof(rootnode) == Leaf
     return 1.0
   end
   goesleft = probleft(x, rootnode, tree)
@@ -37,20 +37,20 @@ function leafprob(x::Vector{Float64}, tree::SoftTree)
   leafprob(x, rightnode, tree, goesright, prob)
 end
 
-function leafprob(x::Vector{Float64}, node::SoftBranch, tree::SoftTree, phi::Float64, prob::Vector{Float64})
-  goesleft = phi * probleft(x, node, tree)
-  leftnode = leftchild(node, tree)
-  goesright = phi * (1 - probleft(x, node, tree))
-  rightnode = rightchild(node, tree)
-  leafprob(x, leftnode, tree, goesleft, prob)
-  leafprob(x, rightnode, tree, goesright, prob)
+function leafprob(x::Vector{Float64}, branch::Branch, tree::Tree, ψ::Float64, ϕ::Vector{Float64})
+  goesleft = ψ * probleft(x, branch, tree)
+  leftnode = leftchild(branch, tree)
+  goesright = ψ * (1 - probleft(x, branch, tree))
+  rightnode = rightchild(branch, tree)
+  leafprob(x, leftnode, tree, goesleft, ϕ)
+  leafprob(x, rightnode, tree, goesright, ϕ)
 end
 
-function leafprob(x::Vector{Float64}, node::SoftLeaf, tree::SoftTree, phi::Float64, prob::Vector{Float64})
-  push!(prob, phi)
+function leafprob(x::Vector{Float64}, leaf::Leaf, tree::Tree, ψ::Float64, ϕ::Vector{Float64})
+  push!(ϕ, ψ)
 end
 
-function leafprob(X::Matrix{Float64}, tree::SoftTree, td::TrainData)
+function leafprob(X::Matrix{Float64}, tree::Tree, td::TrainData)
   Lt = length(leafnodes(tree))
   Phit = zeros(td.n, Lt)
   for i in 1:td.n
@@ -59,7 +59,7 @@ function leafprob(X::Matrix{Float64}, tree::SoftTree, td::TrainData)
   Phit
 end
 
-function treemu(tree::SoftTree)
+function treemu(tree::Tree)
   leaves = leafnodes(tree)
   mut = Float64[]
   for leaf in leaves
@@ -68,23 +68,23 @@ function treemu(tree::SoftTree)
   mut
 end
 
-function isleft(node::SoftNode, tree::SoftTree)
-  index = findall(x -> x == node, tree.tree)[1]
-  iseven(index)
+function isleft(node::Node, tree::Tree)
+  # index = findall(x -> x == node, tree.tree)[1]
+  iseven(node.index)
 end
 
-function isright(node::SoftNode, tree::SoftTree)
-  index = findall(x -> x == node, tree.tree)[1]
-  isodd(index)
+function isright(node::Node, tree::Tree)
+  # index = findall(x -> x == node, tree.tree)[1]
+  isodd(node.index)
 end
 
-function isroot(node::SoftNode, tree::SoftTree)
+function isroot(node::Node, tree::Tree)
   node == tree.tree[1]
 end
 
-function nodeindex(node::SoftNode, tree::SoftTree)
-  findall(x -> x == node, tree.tree)[1]
-end
+# function nodeindex(node::SoftNode, tree::SoftTree)
+#   findall(x -> x == node, tree.tree)[1]
+# end
 
 function leftindex(index::Int64)
   2*index
@@ -98,16 +98,16 @@ function parentindex(index::Int64)
   Int64(floor(index/2))
 end
 
-function Base.parent(node::SoftNode, tree::SoftTree)
-  if node.parent == 0
-    return node
+function Base.parent(node::Node, tree::Tree)
+  if isroot(node, tree)
+    node
   else
     tree.tree[node.parent]
   end
 end
 
-function depth(tree::SoftTree)
-  leafindices = findall(x -> typeof(x) == SoftLeaf, tree.tree)
+function depth(tree::Tree)
+  leafindices = findall(x -> typeof(x) == Leaf, tree.tree)
   maxindex = maximum(leafindices)
   floor(log2(maxindex))
 end
@@ -117,4 +117,22 @@ function depth(index::Int64)
     return nothing
   end
   Int64(floor(log2(index)))
+end
+
+function branches(tree::Tree)
+  branchindices = findall(x -> typeof(x) == Branch, tree.tree)
+  tree.tree[branchindices]
+end
+
+function onlyparents(tree::Tree)
+  if length(tree.tree) == 1
+    return nothing
+  end
+  branchnodes = branches(tree)
+  indices = findall(
+    x -> (typeof(leftchild(x, tree)) == Leaf) &
+      (typeof(rightchild(x, tree)) == Leaf),
+    branchnodes
+  )
+  branchnodes[indices]
 end

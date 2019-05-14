@@ -2,8 +2,8 @@
 ##### SoftBART MCMC sampler
 ###############################################################################
 
-function softbart(x::Matrix{Float64}, y::Vector{Float64}, opts::Opts = Opts())
-  traindata = TrainData(x, y)
+function softbart(X::Matrix{Float64}, y::Vector{Float64}, opts::Opts = Opts())
+  traindata = TrainData(X, y)
   hypers = Hypers(traindata)
   trees = initializetrees(traindata, hypers)
   yhat = treespredict(trees, traindata)
@@ -14,8 +14,8 @@ function softbart(x::Matrix{Float64}, y::Vector{Float64}, opts::Opts = Opts())
     for t in 1:hypers.m
       yhat_t = yhat .- treepredict(trees[t])
       rt = traindata.ytrain .- yhat_t
-      trees[t] = updatetree(trees[t], rt, x, traindata, s2e, hypers)
-      updatetau!(x, rt, trees[t], s2e, traindata, hypers)
+      trees[t] = updatetree(trees[t], rt, X, traindata, s2e, hypers)
+      updatetau!(X, rt, trees[t], s2e, traindata, hypers)
       updatemu!(trees[t], rt, s2e, hypers)
       yhat = yhat_t .+ treepredict(trees[t])
     end
@@ -27,4 +27,9 @@ function softbart(x::Matrix{Float64}, y::Vector{Float64}, opts::Opts = Opts())
     end
   end
   [yhatdraws, s2edraws]
+end
+
+function softbart(x::Vector{Float64}, y::Vector{Float64}, opts::Opts = Opts())
+  X = reshape(x, length(x), 1)
+  softbart(X, y, opts)
 end

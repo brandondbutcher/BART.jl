@@ -9,25 +9,18 @@ using LinearAlgebra, Distributions, StatsBase, Plots , Profile
 ##### Source code
 ###############################################################################
 
-include("../src/soft/treestruct.jl")
-include("../src/soft/treeutils.jl")
-include("../src/soft/preprocess.jl")
-include("../src/soft/proposals.jl")
-include("../src/soft/sampler.jl")
+include("../src/treestruct.jl")
+include("../src/data.jl")
+include("../src/treeutils.jl")
+include("../src/preprocess.jl")
+include("../src/proposals.jl")
+include("../src/sampler.jl")
 # include("../src/soft/predict.jl")
 
 
 ###############################################################################
 ##### Testing implementation
 ###############################################################################
-
-n = 300
-truesigma = sqrt(0.25)
-
-x1 = vcat(rand(Uniform(0.1, 0.4), 200), rand(Uniform(0.6, 0.9), 100))
-x2 = vcat(rand(Uniform(0.1, 0.4), 100), rand(Uniform(0.6, 0.9), 100), rand(Uniform(0.6, 0.9), 100))
-x3 = vcat(rand(Uniform(0.6, 0.9), 200), rand(Uniform(0.1, 0.4), 100))
-X = hcat(x1, x2, x3)
 
 function g(X)
   y = zeros(size(X)[1])
@@ -42,6 +35,15 @@ function g(X)
   end
   y
 end
+
+n = 300
+truesigma = sqrt(0.25)
+
+x1 = vcat(rand(Uniform(0.1, 0.4), 200), rand(Uniform(0.6, 0.9), 100))
+x2 = vcat(rand(Uniform(0.1, 0.4), 100), rand(Uniform(0.6, 0.9), 100), rand(Uniform(0.6, 0.9), 100))
+x3 = vcat(rand(Uniform(0.6, 0.9), 200), rand(Uniform(0.1, 0.4), 100))
+X = hcat(x1, x2, x3)
+
 y = g(X) + rand(Normal(0, truesigma), n)
 
 softfit = softbart(X, y)

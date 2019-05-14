@@ -3,19 +3,19 @@
 ###############################################################################
 
 function initializetrees(td::TrainData, hypers::Hypers)
-  trees = Array{SoftTree}(undef, hypers.m)
+  trees = Array{Tree}(undef, hypers.m)
   mu = mean(td.ytrain) ./ hypers.m
   for t in 1:hypers.m
-    trees[t] = SoftTree([SoftLeaf(mu, 0)], hypers.τ_mean, ones(td.n, 1))
+    trees[t] = Tree([Leaf(1, mu, 0)], hypers.τ_mean, ones(td.n, 1))
   end
   trees
 end
 
-function treepredict(tree::SoftTree)
+function treepredict(tree::Tree)
   tree.Phi * treemu(tree)
 end
 
-function treespredict(trees::Vector{SoftTree}, td::TrainData)
+function treespredict(trees::Vector{Tree}, td::TrainData)
   yhat = zeros(td.n)
   for tree in trees
     yhat += treepredict(tree)
@@ -33,22 +33,22 @@ end
 #   rand(Uniform(lower, upper))
 # end
 
-function drawcut(node::SoftBranch, tree::SoftTree, td::TrainData)
-  var = node.var
-  lower = td.xmin[:,node.var][1]
-  upper = td.xmax[:,node.var][1]
-  check = isroot(node, tree) ? false : true
+function drawcut(branch::Branch, tree::Tree, td::TrainData)
+  var = branch.var
+  lower = td.xmin[:,branch.var][1]
+  upper = td.xmax[:,branch.var][1]
+  check = isroot(branch, tree) ? false : true
   while check
-    is_left = isleft(node, tree)
-    node = parent(node, tree)
-    check = isroot(node, tree) ? false : true
-    if (node.var == var)
+    left = isleft(branch, tree)
+    branch = parent(branch, tree)
+    check = isroot(branch, tree) ? false : true
+    if (branch.var == var)
       check = false
-      if (is_left)
+      if (left)
         lower = lower
-        upper = node.cut
+        upper = branch.cut
       else
-        lower = node.cut
+        lower = branch.cut
         upper = upper
       end
     end
@@ -56,20 +56,20 @@ function drawcut(node::SoftBranch, tree::SoftTree, td::TrainData)
   rand(Uniform(lower, upper))
 end
 
-function growleaf!(leaf::SoftLeaf, tree::SoftTree, td::TrainData, hypers::Hypers)
-  leafindex = nodeindex(leaf, tree)
-  leftid = leftindex(leafindex)
-  rightid = rightindex(leafindex)
+function growleaf!(leaf::Leaf, tree::Tree, td::TrainData, hypers::Hypers)
+  # leafindex = nodeindex(leaf, tree)
+  leftid = leftindex(leaf.index)
+  rightid = rightindex(leaf.index)
   var = rand(1:td.p)
-  tree.tree[leafindex] = SoftBranch(var, 0, leftid, rightid, parentindex(leafindex))
-  tree.tree[leafindex].cut = drawcut(tree.tree[leafindex], tree, td)
-  leftnode = SoftLeaf(0, leafindex)
-  rightnode = SoftLeaf(0, leafindex)
+  tree.tree[leaf.index] = Branch(var, 0, leaf.index, leftid, rightid, parentindex(leaf.index))
+  tree.tree[leaf.index].cut = drawcut(tree.tree[leaf.index], tree, td)
+  leftnode = Leaf(leftid, 0, leaf.index)
+  rightnode = Leaf(rightid, 0, leaf.index)
   treeindices = 1:length(tree.tree)
   if !(leftid in treeindices)
     newdepth = depth(leftid)
     minindex = 2^newdepth
-    maxindex = 2^(newdepth + 1)   - 1
+    maxindex = 2^(newdepth + 1) - 1
     newindices = minindex:maxindex
     for i in newindices
       if i == leftid
@@ -90,36 +90,18 @@ function probgrow(depth, hypers::Hypers)
   hypers.α * (1.0 + depth) ^ (-hypers.β)
 end
 
-function birth_tree_ratio(tree::SoftTree, hypers::Hypers)
+function birth_tree_ratio(tree::Tree, hypers::Hypers)
   d = depth(tree)
   numr = probgrow(d, hypers) * (1 - probgrow(d + 1, hypers)) ^ 2
   denomr = 1 - probgrow(d, hypers)
   log(numr) - log(denomr)
 end
 
-function birthprob(tree::SoftTree)
-  typeof(tree.tree[1]) == SoftLeaf ? 1.0 : 0.5
+function birthprob(tree::Tree)
+  typeof(tree.tree[1]) == Leaf ? 1.0 : 0.5
 end
 
-function branches(tree::SoftTree)
-  branchindices = findall(x -> typeof(x) == SoftBranch, tree.tree)
-  tree.tree[branchindices]
-end
-
-function onlyparents(tree::SoftTree)
-  if length(tree.tree) == 1
-    return nothing
-  end
-  branchnodes = branches(tree)
-  indices = findall(
-    x -> (typeof(leftchild(x, tree)) == SoftLeaf) &
-      (typeof(rightchild(x, tree)) == SoftLeaf),
-    branchnodes
-  )
-  branchnodes[indices]
-end
-
-function birth_trans_ratio(tree::SoftTree, tree_prime::SoftTree)
+function birth_trans_ratio(tree::Tree, tree_prime::Tree)
   pb = birthprob(tree)
   pd = 1 - birthprob(tree_prime)
   Lt = length(leafnodes(tree))
@@ -129,86 +111,85 @@ function birth_trans_ratio(tree::SoftTree, tree_prime::SoftTree)
   log(numr) - log(denomr)
 end
 
-function mll(rt::Vector{Float64}, tree::SoftTree, s2e::Float64, hypers::Hypers, td::TrainData)
+function mll(residt::Vector{Float64}, tree::Tree, s2e::Float64, hypers::Hypers, td::TrainData)
   Lt = size(tree.Phi)[2]
   Omega = inv(transpose(tree.Phi) * tree.Phi / s2e + I / hypers.s2μ)
-  rhat = transpose(tree.Phi) * rt / s2e
+  rhat = transpose(tree.Phi) * residt / s2e
   mll = 0.5 * logdet(2 * pi * Omega)
   mll -= 0.5 * td.n * log(2 * pi * s2e)
   mll -= 0.5 * Lt * log(2 * pi * hypers.s2μ)
-  mll -= 0.5 * dot(rt, rt) / s2e
+  mll -= 0.5 * dot(residt, residt) / s2e
   mll += 0.5 * dot(rhat, Omega * rhat)
   mll
 end
 
-function mll_ratio(rt, tree, tree_prime, s2e, hypers, td)
-  mllt = mll(rt, tree, s2e, hypers, td)
-  mllt_prime = mll(rt, tree_prime, s2e, hypers, td)
+function mll_ratio(residt::Vector{Float64}, tree::Tree, tree_prime::Tree, s2e::Float64, hypers::Hypers, td::TrainData)
+  mllt = mll(residt, tree, s2e, hypers, td)
+  mllt_prime = mll(residt, tree_prime, s2e, hypers, td)
   mllt_prime - mllt
 end
 
-function pruneleaves!(node::SoftBranch, tree::SoftTree)
-  pruneindex = nodeindex(node, tree)
-  tree.tree[node.leftchild] = nothing
-  tree.tree[node.rightchild] = nothing
-  tree.tree[pruneindex] = SoftLeaf(0, node.parent)
+function pruneleaves!(branch::Branch, tree::Tree)
+  tree.tree[branch.leftchild] = nothing
+  tree.tree[branch.rightchild] = nothing
+  tree.tree[branch.index] = Leaf(branch.index, 0, branch.parent)
 end
 
-function birthproposal(tree::SoftTree, rt::Vector{Float64}, x::Matrix{Float64}, td::TrainData, s2e, hypers::Hypers)
-  tree_prime = SoftTree([], tree.tau, ones(td.n, 1))
+function birthproposal(tree::Tree, residt::Vector{Float64}, X::Matrix{Float64}, td::TrainData, s2e::Float64, hypers::Hypers)
+  tree_prime = Tree([], tree.tau, ones(td.n, 1))
   tree_prime.tree = copy(tree.tree)
   leaves_prime = leafnodes(tree_prime)
   leaf_prime = rand(leaves_prime)
   growleaf!(leaf_prime, tree_prime, td, hypers)
-  tree_prime.Phi = leafprob(x, tree_prime, td)
-  mloglikratio = mll_ratio(rt, tree, tree_prime, s2e, hypers, td)
+  tree_prime.Phi = leafprob(X, tree_prime, td)
+  mloglikratio = mll_ratio(residt, tree, tree_prime, s2e, hypers, td)
   treeratio = birth_tree_ratio(tree, hypers)
   transratio = birth_trans_ratio(tree, tree_prime)
   logr = mloglikratio + treeratio + transratio
   return log(rand()) < logr ? tree_prime : tree
 end
 
-function death_tree_ratio(tree::SoftTree, hypers::Hypers)
+function death_tree_ratio(tree::Tree, hypers::Hypers)
   1 / birth_tree_ratio(tree, hypers)
 end
 
-function death_trans_ratio(tree::SoftTree, tree_prime::SoftTree)
+function death_trans_ratio(tree::Tree, tree_prime::Tree)
   numr = birthprob(tree_prime) / (length(leafnodes(tree_prime)) - 1)
   denomr = (1 - birthprob(tree)) / (length(onlyparents(tree_prime)))
   log(numr) - log(denomr)
 end
 
-function deathproposal(tree::SoftTree, rt::Vector{Float64}, x::Matrix{Float64}, td::TrainData, s2e, hypers::Hypers)
-  tree_prime = SoftTree([], tree.tau, ones(td.n, 1))
+function deathproposal(tree::Tree, residt::Vector{Float64}, X::Matrix{Float64}, td::TrainData, s2e::Float64, hypers::Hypers)
+  tree_prime = Tree([], tree.tau, ones(td.n, 1))
   tree_prime.tree = copy(tree.tree)
   branches_prime = onlyparents(tree_prime)
   branch_prime = rand(branches_prime)
   pruneleaves!(branch_prime, tree_prime)
-  tree_prime.Phi = leafprob(x, tree_prime, td)
-  mloglikratio = mll_ratio(rt, tree, tree_prime, s2e, hypers, td)
+  tree_prime.Phi = leafprob(X, tree_prime, td)
+  mloglikratio = mll_ratio(residt, tree, tree_prime, s2e, hypers, td)
   treeratio = death_tree_ratio(tree, hypers)
   transratio = death_trans_ratio(tree, tree_prime)
   logr = mloglikratio + treeratio + transratio
   return log(rand()) < logr ? tree_prime : tree
 end
 
-function updatetree(tree::SoftTree, rt::Vector{Float64}, x::Matrix{Float64}, td::TrainData, s2e, hypers::Hypers)
+function updatetree(tree::Tree, residt::Vector{Float64}, X::Matrix{Float64}, td::TrainData, s2e::Float64, hypers::Hypers)
   if rand() < birthprob(tree)
-    return birthproposal(tree, rt, x, td, s2e, hypers)
+    return birthproposal(tree, residt, X, td, s2e, hypers)
   else
-    return deathproposal(tree, rt, x, td, s2e, hypers)
+    return deathproposal(tree, residt, X, td, s2e, hypers)
   end
 end
 
-function updatetau!(x::Matrix{Float64}, rt::Vector{Float64}, tree::SoftTree, s2e, td::TrainData, hypers::Hypers)
+function updatetau!(X::Matrix{Float64}, residt::Vector{Float64}, tree::Tree, s2e::Float64, td::TrainData, hypers::Hypers)
   Phit_tau = tree.Phi
-  mllt_tau = mll(rt, tree, s2e, hypers, td)
-  lp_tau = logpdf(Exponential(0.1), tree.tau)
+  mllt_tau = mll(residt, tree, s2e, hypers, td)
+  lp_tau = logpdf(Exponential(hypers.τ_mean), tree.tau)
   log_tau = log(tree.tau)
   log_tauprime = log(tree.tau) + rand(Uniform(-1, 1))
   tree.tau = exp(log_tauprime)
-  tree.Phi = leafprob(x, tree, td)
-  mllt_tauprime = mll(rt, tree, s2e, hypers, td)
+  tree.Phi = leafprob(X, tree, td)
+  mllt_tauprime = mll(residt, tree, s2e, hypers, td)
   lp_tauprime = logpdf(Exponential(0.1), tree.tau)
   logr = mllt_tauprime + lp_tauprime + log_tauprime - (mllt_tau + lp_tau + log_tau)
   if log(rand()) >= logr
@@ -217,9 +198,9 @@ function updatetau!(x::Matrix{Float64}, rt::Vector{Float64}, tree::SoftTree, s2e
   end
 end
 
-function updatemu!(tree::SoftTree, rt::Vector{Float64}, s2e, hypers::Hypers)
+function updatemu!(tree::Tree, residt::Vector{Float64}, s2e::Float64, hypers::Hypers)
   Omega = inv(transpose(tree.Phi) * tree.Phi / s2e + I / hypers.s2μ)
-  rhat = transpose(tree.Phi) * rt / s2e
+  rhat = transpose(tree.Phi) * residt / s2e
   newmu = rand(MvNormal(Omega * rhat, Symmetric(Omega)))
   leaves = leafnodes(tree)
   for l in 1:length(leaves)
