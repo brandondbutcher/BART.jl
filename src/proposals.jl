@@ -3,7 +3,7 @@
 ###############################################################################
 
 function initializetrees(td::TrainData, hypers::Hypers)
-  trees = Array{Tree}(undef, hypers.m)
+  trees = Vector{Tree}(undef, hypers.m)
   mu = mean(td.ytrain) ./ hypers.m
   for t in 1:hypers.m
     trees[t] = Tree([Leaf(1, mu, 0)], hypers.τ_mean, ones(td.n, 1))
@@ -22,16 +22,6 @@ function treespredict(trees::Vector{Tree}, td::TrainData)
   end
   yhat
 end
-
-# function drawcut(node::SoftLeaf, tree::SoftTree, td::TrainData)
-#   a = [td.xmin[:,1][1], leftparent(node, tree)]
-#   a = filter(x -> x != nothing, a)
-#   b = [td.xmax[:,1][1], rightparent(node, tree)]
-#   b = filter(x -> x != nothing, b)
-#   lower = maximum(a)
-#   upper = minimum(b)
-#   rand(Uniform(lower, upper))
-# end
 
 function drawcut(branch::Branch, tree::Tree, td::TrainData)
   var = branch.var
@@ -57,10 +47,39 @@ function drawcut(branch::Branch, tree::Tree, td::TrainData)
 end
 
 function growleaf!(leaf::Leaf, tree::Tree, td::TrainData, hypers::Hypers)
-  # leafindex = nodeindex(leaf, tree)
   leftid = leftindex(leaf.index)
   rightid = rightindex(leaf.index)
   var = rand(1:td.p)
+  tree.tree[leaf.index] = Branch(var, 0, leaf.index, leftid, rightid, parentindex(leaf.index))
+  tree.tree[leaf.index].cut = drawcut(tree.tree[leaf.index], tree, td)
+  leftnode = Leaf(leftid, 0, leaf.index)
+  rightnode = Leaf(rightid, 0, leaf.index)
+  treeindices = 1:length(tree.tree)
+  if !(leftid in treeindices)
+    newdepth = depth(leftid)
+    minindex = 2^newdepth
+    maxindex = 2^(newdepth + 1) - 1
+    newindices = minindex:maxindex
+    for i in newindices
+      if i == leftid
+        push!(tree.tree, leftnode)
+      elseif i == rightid
+        push!(tree.tree, rightnode)
+      else
+        push!(tree.tree, nothing)
+      end
+    end
+  else
+    tree.tree[leftid] = leftnode
+    tree.tree[rightid] = rightnode
+  end
+end
+
+function growleaf!(leaf::Leaf, tree::Tree, vars::Vector{Int64}, td::TrainData, hypers::Hypers)
+  leftid = leftindex(leaf.index)
+  rightid = rightindex(leaf.index)
+  # var = rand(1:td.p)
+  var = rand(vars)
   tree.tree[leaf.index] = Branch(var, 0, leaf.index, leftid, rightid, parentindex(leaf.index))
   tree.tree[leaf.index].cut = drawcut(tree.tree[leaf.index], tree, td)
   leftnode = Leaf(leftid, 0, leaf.index)

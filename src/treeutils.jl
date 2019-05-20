@@ -59,6 +59,16 @@ function leafprob(X::Matrix{Float64}, tree::Tree, td::TrainData)
   Phit
 end
 
+function leafprob(X::Matrix{Float64}, tree::Tree)
+  Lt = length(leafnodes(tree))
+  n = size(X)[1]
+  Phit = zeros(n, Lt)
+  for i in 1:n
+    Phit[i,:] .= leafprob(X[i,:], tree)
+  end
+  Phit
+end
+
 function treemu(tree::Tree)
   leaves = leafnodes(tree)
   mut = Float64[]
@@ -135,4 +145,17 @@ function onlyparents(tree::Tree)
     branchnodes
   )
   branchnodes[indices]
+end
+
+function varcounts(tree::Tree, td::TrainData)
+  branches = onlyparents(tree)
+  vc = Int64.(zeros(td.p))
+  for v in 1:td.p
+    for branch in branches
+      if branch.var === v
+        vc[v] += 1
+      end
+    end
+  end
+  vc
 end

@@ -15,7 +15,7 @@ include("../src/treeutils.jl")
 include("../src/preprocess.jl")
 include("../src/proposals.jl")
 include("../src/sampler.jl")
-# include("../src/soft/predict.jl")
+include("../src/predict.jl")
 
 
 ###############################################################################
@@ -25,18 +25,20 @@ include("../src/sampler.jl")
 function g(X::Matrix{Float64})
   10sin.(2*pi * X[:,1] .* X[:,2]) + 20(X[:,3] .- 0.5).^2 + 10X[:,4] + 5X[:,5]
 end
-n = 500
+n = 100
 p = 5
 X = rand(n, p)
 truesigma = sqrt(0.1)
 y = g(X) + rand(Normal(0, truesigma), n)
 
-softfit = softbart(X, y)
+ntest = 50
+Xtest = rand(ntest, p)
 
-yhatpost = softfit[1]
-s2epost = softfit[2]
+softfit = softbart(X, Xtest, y)
 
 using RCall
+yhatpost = softfit.yhat
+s2epost = softfit.σ2
 R"""
 y <- $y
 X <- $X
@@ -59,4 +61,29 @@ points(g(X), g(X) - yhatmean, pch = 19)
 dev.new()
 plot(s2epost, pch = 19, col = adjustcolor("gray", 2 / 3))
 abline(h = $truesigma^2, lty = 3)
+"""
+
+yhat_test = softfit.yhat_test
+R"""
+X <- $Xtest
+yhatpost <- $yhat_test
+
+g <- function(X) {
+  10*sin(2*pi * X[,1] * X[,2]) + 20*(X[,3] - 0.5)^2 + 10*X[,4] + 5*X[,5]
+}
+y <- g(X)
+
+diff <- matrix(NA, nrow = nrow(yhatpost), ncol = ncol(yhatpost))
+for (s in 1:ncol(diff)) {
+    diff[,s] = y - yhatpost[,s]
+}
+
+yhatmean <- apply(diff, 1, mean)
+yhatup <- apply(diff, 1, quantile, probs = 0.95)
+yhatlow <- apply(diff, 1, quantile, probs = 0.05)
+
+dev.new()
+plot(yhatmean ~ g(X), pch = 19, ylim = c(-5, 5))
+segments(x0 = g(X), x1 = g(X), y0 = yhatlow, y1 = yhatup, col = "gray")
+points(g(X), yhatmean, pch = 19)
 """
