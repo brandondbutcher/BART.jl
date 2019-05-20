@@ -46,11 +46,13 @@ X = hcat(x1, x2, x3)
 
 y = g(X) + rand(Normal(0, truesigma), n)
 
-softfit = softbart(X, y)
-yhatpost = softfit[1]
-s2epost = softfit[2]
+traindata = TrainData(X, y)
+hypers = Hypers(traindata, m = 2)
+softfit = softbart(X, y, traindata, hypers, Opts(0, 5000, 1))
 
 using RCall
+yhatpost = softfit.yhat
+s2epost = softfit.σ2
 R"""
 y <- $y
 X <- $X
@@ -74,8 +76,8 @@ yhatup <- apply(yhatpost, 1, quantile, probs = 0.975)
 yhatlow <- apply(yhatpost, 1, quantile, probs = 0.025)
 
 dev.new()
-plot(yhatmean ~ g(X), pch = 19)
-segments(x0 = g(X), x1 = g(X), y0 = yhatlow, y1 = yhatup)
+plot(g(X) - yhatmean ~ g(X), pch = 19)
+segments(x0 = g(X), x1 = g(X), y0 = g(X) - yhatlow, y1 = g(X) - yhatup)
 abline(0, 1, lty = 3)
 
 dev.new()

@@ -168,6 +168,20 @@ function birthproposal(tree::Tree, residt::Vector{Float64}, X::Matrix{Float64}, 
   return log(rand()) < logr ? tree_prime : tree
 end
 
+function birthproposal(tree::Tree, residt::Vector{Float64}, X::Matrix{Float64}, vars::Vector{Int64}, td::TrainData, s2e::Float64, hypers::Hypers)
+  tree_prime = Tree([], tree.tau, ones(td.n, 1))
+  tree_prime.tree = copy(tree.tree)
+  leaves_prime = leafnodes(tree_prime)
+  leaf_prime = rand(leaves_prime)
+  growleaf!(leaf_prime, tree_prime, vars, td, hypers)
+  tree_prime.Phi = leafprob(X, tree_prime, td)
+  mloglikratio = mll_ratio(residt, tree, tree_prime, s2e, hypers, td)
+  treeratio = birth_tree_ratio(tree, hypers)
+  transratio = birth_trans_ratio(tree, tree_prime)
+  logr = mloglikratio + treeratio + transratio
+  return log(rand()) < logr ? tree_prime : tree
+end
+
 function death_tree_ratio(tree::Tree, hypers::Hypers)
   1 / birth_tree_ratio(tree, hypers)
 end
@@ -195,6 +209,14 @@ end
 function updatetree(tree::Tree, residt::Vector{Float64}, X::Matrix{Float64}, td::TrainData, s2e::Float64, hypers::Hypers)
   if rand() < birthprob(tree)
     return birthproposal(tree, residt, X, td, s2e, hypers)
+  else
+    return deathproposal(tree, residt, X, td, s2e, hypers)
+  end
+end
+
+function updatetree(tree::Tree, residt::Vector{Float64}, X::Matrix{Float64}, vars::Vector{Int64}, td::TrainData, s2e::Float64, hypers::Hypers)
+  if rand() < birthprob(tree)
+    return birthproposal(tree, residt, X, vars, td, s2e, hypers)
   else
     return deathproposal(tree, residt, X, td, s2e, hypers)
   end
