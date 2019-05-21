@@ -2,7 +2,7 @@
 ##### Load packages
 ###############################################################################
 
-using LinearAlgebra, Distributions, StatsBase, Plots , Profile
+using LinearAlgebra, Distributions, StatsBase
 
 
 ###############################################################################
