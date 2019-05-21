@@ -27,17 +27,18 @@ end
 
 struct Posterior
   yhat::Matrix{Float64}
-  σ2::Vector{Float64}
-  treedepth::Matrix{Int64}
-  numleaves::Matrix{Int64}
-  varcount::Matrix{Int64}
-end
-
-struct PosteriorTest
-  yhat::Matrix{Float64}
   yhat_test::Matrix{Float64}
   σ2::Vector{Float64}
   treedepth::Matrix{Int64}
   numleaves::Matrix{Int64}
   varcount::Matrix{Int64}
 end
+
+# struct PosteriorTest
+#   yhat::Matrix{Float64}
+#   yhat_test::Matrix{Float64}
+#   σ2::Vector{Float64}
+#   treedepth::Matrix{Int64}
+#   numleaves::Matrix{Int64}
+#   varcount::Matrix{Int64}
+# end

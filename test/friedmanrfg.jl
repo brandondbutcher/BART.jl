@@ -23,31 +23,40 @@ include("../src/predict.jl")
 ###############################################################################
 
 data = FriedmanRFG(100)
+
+# traindata = TrainData(data.X, data.yobs)
+# hypers = Hypers(traindata, m = 200)
 softfit = softbart(data.X, data.yobs)
 
 using RCall
+ytrue = data.ytrue
+truesigma2 = data.σ2
 yhatpost = softfit.yhat
 s2epost = softfit.σ2
 R"""
-y <- $y
-X <- $X
+ytrue <- $ytrue
 yhatpost <- $yhatpost
 s2epost <- $s2epost
 
-g <- function(X) {
-  10*sin(2*pi * X[,1] * X[,2]) + 20*(X[,3] - 0.5)^2 + 10*X[,4] + 5*X[,5]
-}
-
 yhatmean <- apply(yhatpost, 1, mean)
-yhatup <- apply(yhatpost, 1, quantile, probs = 0.95)
-yhatlow <- apply(yhatpost, 1, quantile, probs = 0.05)
+ciupper <- apply(yhatpost, 1, quantile, probs = 0.95)
+cilower <- apply(yhatpost, 1, quantile, probs = 0.05)
 
 dev.new()
-plot((g(X) - yhatmean) ~ g(X), pch = 19, ylim = c(-3, 3))
-segments(x0 = g(X), x1 = g(X), y0 = (g(X) - yhatlow), y1 = (g(X) - yhatup), col = "gray")
-points(g(X), g(X) - yhatmean, pch = 19)
+plot(yhatmean ~ ytrue, pch = 19, ylim = c(-3, 3))
+abline(0, 1, lty = 3)
+segments(
+  x0 = ytrue, x1 = ytrue,
+  y0 = cilower, y1 = ciupper,
+  col = adjustcolor("black", 1/3)
+)
+
+covered <- rep(NA, length(ytrue))
+for (i in 1:length(ytrue)) {
+  covered[i] <- cilower[i] <= ytrue[i] & ytrue[i] <= ciupper[i]
+}
 
 dev.new()
 plot(s2epost, pch = 19, col = adjustcolor("gray", 2 / 3))
-abline(h = $truesigma^2, lty = 3)
+abline(h = $truesigma2, lty = 3)
 """

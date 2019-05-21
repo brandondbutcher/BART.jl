@@ -10,6 +10,7 @@ function softbart(X::Matrix{Float64}, y::Vector{Float64}, opts::Opts = Opts())
   s2e = traindata.s2ϵhat
   posterior = Posterior(
     Matrix{Float64}(undef, traindata.n, opts.ndraw),
+    Matrix{Float64}(undef, traindata.n, opts.ndraw),
     Vector{Float64}(undef, opts.ndraw),
     Matrix{Int64}(undef, hypers.m, opts.ndraw),
     Matrix{Int64}(undef, hypers.m, opts.ndraw),
@@ -46,6 +47,7 @@ function softbart(X::Matrix{Float64}, y::Vector{Float64}, traindata::TrainData, 
   yhat = treespredict(trees, traindata)
   s2e = traindata.s2ϵhat
   posterior = Posterior(
+    Matrix{Float64}(undef, traindata.n, opts.ndraw),
     Matrix{Float64}(undef, traindata.n, opts.ndraw),
     Vector{Float64}(undef, opts.ndraw),
     Matrix{Int64}(undef, hypers.m, opts.ndraw),
@@ -88,9 +90,9 @@ function softbart(X::Matrix{Float64}, Xtest::Matrix{Float64}, y::Vector{Float64}
   trees = initializetrees(traindata, hypers)
   yhat = treespredict(trees, traindata)
   s2e = traindata.s2ϵhat
-  posterior = PosteriorTest(
+  posterior = Posterior(
     Matrix{Float64}(undef, traindata.n, opts.ndraw),
-    Matrix{Float64}(undef, ntest, opts.ndraw),
+    Matrix{Float64}(undef, size(Xtest)[1], opts.ndraw),
     Vector{Float64}(undef, opts.ndraw),
     Matrix{Int64}(undef, hypers.m, opts.ndraw),
     Matrix{Int64}(undef, hypers.m, opts.ndraw),
@@ -129,6 +131,7 @@ function mandopt(X::Matrix{Float64}, y::Vector{Float64}, mand::Vector{Int64}, op
   yhat = treespredict(trees, traindata)
   s2e = traindata.s2ϵhat
   posterior = Posterior(
+    Matrix{Float64}(undef, traindata.n, opts.ndraw),
     Matrix{Float64}(undef, traindata.n, opts.ndraw),
     Vector{Float64}(undef, opts.ndraw),
     Matrix{Int64}(undef, hypers.m, opts.ndraw),
