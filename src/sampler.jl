@@ -83,10 +83,8 @@ function softbart(x::Vector{Float64}, y::Vector{Float64}, opts::Opts = Opts())
   softbart(X, y, opts)
 end
 
-function softbart(X::Matrix{Float64}, Xtest::Matrix{Float64}, y::Vector{Float64}, opts::Opts = Opts())
-  traindata = TrainData(X, y)
+function softbart(X::Matrix{Float64}, Xtest::Matrix{Float64}, y::Vector{Float64}, traindata::TrainData, hypers::Hypers, opts::Opts = Opts())
   ntest = size(Xtest)[1]
-  hypers = Hypers(traindata)
   trees = initializetrees(traindata, hypers)
   yhat = treespredict(trees, traindata)
   s2e = traindata.s2ϵhat
