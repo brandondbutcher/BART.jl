@@ -66,7 +66,7 @@ struct FriedmanRFG
     nvars = Int64.(floor.(1.5 .+ rand(Exponential(theta), nfuns)))
     G = Matrix{Float64}(undef, n, nfuns)
     for l in 1:nfuns
-      vars = rand(1:p, nvars[l])
+      vars = sample(1:10, nvars[l], replace = false)
       Z = X[:,vars]
       mu = rand(MvNormal(repeat([0], nvars[l]), 1))
       Q,R = qr(randn(nvars[l], nvars[l]))
@@ -84,8 +84,7 @@ struct FriedmanRFG
     end
     ytrue = G * a
     σ2 = stn * mean(abs.(ytrue .- median(ytrue)))
-    ε = rand(Normal(0, sqrt(σ2)), n)
-    yobs = ytrue + ε
+    yobs = ytrue + rand(Normal(0, sqrt(σ2)), n)
     new(X, yobs, ytrue, σ2)
   end
 end
