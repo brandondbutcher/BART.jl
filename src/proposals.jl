@@ -256,7 +256,7 @@ function updatesigma(yhat::Vector{Float64}, td::TrainData, hypers::Hypers)
   rand(InverseGamma(a, b))
 end
 
-# function updatesigmamu(trees::Vector{SoftTree}, hypers::Hypers)
+# function updatesigmamu(trees::Vector{Tree}, hypers::Hypers)
 #   mu = []
 #   for tree in trees
 #     mut = treemu(tree)
