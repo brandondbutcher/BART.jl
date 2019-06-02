@@ -31,10 +31,7 @@ X = rand(n, p)
 truesigma = sqrt(0.1)
 y = g(X) + rand(Normal(0, truesigma), n)
 
-ntest = 50
-Xtest = rand(ntest, p)
-
-softfit = softbart(X, Xtest, y)
+softfit = softbart(X, y)
 
 using RCall
 yhatpost = softfit.yhat
