@@ -2,160 +2,80 @@
 ##### Tree utility functions
 ###############################################################################
 
-function root(tree::Tree)
-  tree.tree[1]
-end
-
-function leftchild(branch::Branch, tree::Tree)
-  tree.tree[branch.leftchild]
-end
-
-function rightchild(branch::Branch, tree::Tree)
-  tree.tree[branch.rightchild]
-end
-
+## Get leafnodes from tree: Returns Vector{Leaf}
 function leafnodes(tree::Tree)
-  leafindices = findall(x -> typeof(x) == Leaf, tree.tree)
-  tree.tree[leafindices]
-end
-
-function probleft(x::Vector{Float64}, branch::Branch, tree::Tree)
-  1 / (1 + exp((x[branch.var] - branch.cut) / tree.tau))
-end
-
-function leafprob(x::Vector{Float64}, tree::Tree)
-  prob = Float64[]
-  rootnode = root(tree)
-  if typeof(rootnode) == Leaf
-    return 1.0
-  end
-  goesleft = probleft(x, rootnode, tree)
-  leftnode = leftchild(rootnode, tree)
-  goesright = 1 - goesleft
-  rightnode = rightchild(rootnode, tree)
-  leafprob(x, leftnode, tree, goesleft, prob)
-  leafprob(x, rightnode, tree, goesright, prob)
-end
-
-function leafprob(x::Vector{Float64}, branch::Branch, tree::Tree, ψ::Float64, ϕ::Vector{Float64})
-  goesleft = ψ * probleft(x, branch, tree)
-  leftnode = leftchild(branch, tree)
-  goesright = ψ * (1 - probleft(x, branch, tree))
-  rightnode = rightchild(branch, tree)
-  leafprob(x, leftnode, tree, goesleft, ϕ)
-  leafprob(x, rightnode, tree, goesright, ϕ)
-end
-
-function leafprob(x::Vector{Float64}, leaf::Leaf, tree::Tree, ψ::Float64, ϕ::Vector{Float64})
-  push!(ϕ, ψ)
-end
-
-function leafprob(X::Matrix{Float64}, tree::Tree, td::TrainData)
-  Lt = length(leafnodes(tree))
-  Phit = zeros(td.n, Lt)
-  for i in 1:td.n
-    Phit[i,:] .= leafprob(X[i,:], tree)
-  end
-  Phit
-end
-
-function leafprob(X::Matrix{Float64}, tree::Tree)
-  Lt = length(leafnodes(tree))
-  n = size(X)[1]
-  Phit = zeros(n, Lt)
-  for i in 1:n
-    Phit[i,:] .= leafprob(X[i,:], tree)
-  end
-  Phit
-end
-
-function treemu(tree::Tree)
-  leaves = leafnodes(tree)
-  mut = Float64[]
-  for leaf in leaves
-    push!(mut, leaf.mu)
-  end
-  mut
-end
-
-function isleft(node::Node, tree::Tree)
-  # index = findall(x -> x == node, tree.tree)[1]
-  iseven(node.index)
-end
-
-function isright(node::Node, tree::Tree)
-  # index = findall(x -> x == node, tree.tree)[1]
-  isodd(node.index)
-end
-
-function isroot(node::Node, tree::Tree)
-  node == tree.tree[1]
-end
-
-# function nodeindex(node::SoftNode, tree::SoftTree)
-#   findall(x -> x == node, tree.tree)[1]
-# end
-
-function leftindex(index::Int64)
-  2*index
-end
-
-function rightindex(index::Int64)
-  2*index + 1
-end
-
-function parentindex(index::Int64)
-  Int64(floor(index/2))
-end
-
-function Base.parent(node::Node, tree::Tree)
-  if isroot(node, tree)
-    node
+  leaves = Leaf[]
+  if isa(tree.root, Leaf)
+    push!(leaves, tree.root)
   else
-    tree.tree[node.parent]
+    leafnodes(tree.root.left, leaves)
+    leafnodes(tree.root.right, leaves)
   end
 end
 
-function depth(tree::Tree)
-  leafindices = findall(x -> typeof(x) == Leaf, tree.tree)
-  maxindex = maximum(leafindices)
-  floor(log2(maxindex))
-end
-
-function depth(index::Int64)
-  if index == 0
-    return nothing
+function leafnodes(node::Node, leaves::Vector{Leaf})
+  if isa(node, Leaf)
+    push!(leaves, node)
+  else
+    leafnodes(node.left, leaves)
+    leafnodes(node.right, leaves)
   end
-  Int64(floor(log2(index)))
 end
 
-function branches(tree::Tree)
-  branchindices = findall(x -> typeof(x) == Branch, tree.tree)
-  tree.tree[branchindices]
+## Get the parent node of some node of interest in the tree
+## the parent node of root is defined to be of type Nothing
+function Base.parent(node::Node, tree::Tree)
+  parent(node, tree.root)
 end
 
+function Base.parent(node::Node, cnode::Branch)
+  if (cnode.left == node) || (cnode.right == node)
+    return cnode
+  else
+    parent(node, cnode.left) == nothing ? parent(node, cnode.right) : parent(node, cnode.left)
+  end
+end
+
+function Base.parent(node::Node, cnode::Leaf)
+  nothing
+end
+
+## Get the branches in the tree that are only parents
+## i.e., branch nodes whose children are both leaf nodes
+## returns Vector{Branch}
 function onlyparents(tree::Tree)
-  if length(tree.tree) == 1
-    return nothing
+  branches = Branch[]
+  if isa(tree.root, Leaf)
+    return [tree.root]
+  else
+    onlyparents(tree.root, branches)
   end
-  branchnodes = branches(tree)
-  indices = findall(
-    x -> (typeof(leftchild(x, tree)) == Leaf) &
-      (typeof(rightchild(x, tree)) == Leaf),
-    branchnodes
-  )
-  branchnodes[indices]
 end
 
-function varcounts(tree::Tree, td::TrainData)
-  branches = onlyparents(tree)
-  vc = Int64.(zeros(td.p))
-  for v in 1:td.p
-    for branch in branches
-      if branch.var === v
-        vc[v] += 1
-      end
-    end
+function onlyparents(branch::Branch, branches::Vector{Branch})
+  if isa(branch.left, Leaf) & isa(branch.right, Leaf)
+    push!(branches, branch)
+  else
+    onlyparents(branch.left, branches)
+    onlyparents(branch.right, branches)
   end
-  vc
+  return branches
+end
+
+function onlyparents(leaf::Leaf, branches::Vector{Branch})
+  nothing
+end
+
+## Determine the depth of a given node
+## by convention, the depth of the root node is defined to be zero.
+function depth(node::Node, tree::Tree)
+  tree.root == node ? 0 : 1 + depth(parent(node, tree), tree)
+end
+
+## Determine whether a node is a left node
+## returns true if the node is a left node and false if it's not
+## (i.e., a right node)
+function isleft(node::Node, tree::Tree)
+  parentnode = parent(node, tree)
+  parentnode.left == node ? true : false
 end

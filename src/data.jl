@@ -54,6 +54,11 @@ struct Hypers
   end
 end
 
+struct Posterior
+  yhat::Matrix{Float64}
+  σ2::Vector{Float64}
+end
+
 struct FriedmanRFG
   X::Matrix{Float64}
   yobs::Vector{Float64}
