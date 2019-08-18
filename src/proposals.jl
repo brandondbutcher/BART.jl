@@ -13,6 +13,42 @@ function initializetrees(td::TrainData, hypers::Hypers)
   trees
 end
 
+## Probability a node is a Branch node
+function probgrow(d::Int64, hypers::Hypers)
+  hypers.α * (1.0 + d) ^ (-hypers.β)
+end
+
+## Prior probability of a Tree
+function log_tree_prior(tree::Tree, hypers::Hypers)
+  if isa(tree.root, Leaf)
+    d = depth(tree.root, tree)
+    return log(1 - probgrow(d, hypers))
+  end
+  lp = log(probgrow(depth(tree.root, tree), hypers))
+  log_tree_prior(tree.root.left, tree, hypers, lp) +
+    log_tree_prior(tree.root.right, tree, hypers, lp)
+end
+
+function log_tree_prior(trees::Vector{T} where T <: Tree, hypers::Hypers)
+  ltp = 0
+  for tree in trees
+    ltp += log_tree_prior(tree, hypers)
+  end
+  ltp
+end
+
+function log_tree_prior(branch::Branch, tree::Tree, hypers::Hypers, lp::Float64)
+  d = depth(branch, tree)
+  lp = lp + log(probgrow(d, hypers))
+  log_tree_prior(branch.left, tree, hypers, lp) +
+    log_tree_prior(branch.right, tree, hypers, lp)
+end
+
+function log_tree_prior(leaf::Leaf, tree::Tree, hypers::Hypers, lp::Float64)
+  d = depth(leaf, tree)
+  lp + log(1 - probgrow(d, hypers))
++end
+
 ## Probability that an observtion goes left at a given node
 function probleft(x::Vector{Float64}, branch::Branch, tree::Tree)
   1 / (1 + exp((x[branch.var] - branch.cut) / tree.tau))
@@ -98,11 +134,6 @@ function birthleaf!(leaf::Leaf, tree::Tree, branch::Branch)
       parentnode.right = branch
     end
   end
-end
-
-## Probability a node is a Branch node
-function probgrow(d::Int64, hypers::Hypers)
-  hypers.α * (1.0 + d) ^ (-hypers.β)
 end
 
 ## Probability of making a birth proposal
