@@ -71,10 +71,10 @@ struct FriedmanRFG
     nvars = Int64.(floor.(1.5 .+ rand(Exponential(theta), nfuns)))
     G = Matrix{Float64}(undef, n, nfuns)
     for l in 1:nfuns
-      vars = sample(1:10, nvars[l], replace = false)
+      vars = sample(1:p, nvars[l], replace = false)
       Z = X[:,vars]
       mu = rand(MvNormal(repeat([0], nvars[l]), 1))
-      Q,R = qr(randn(nvars[l], nvars[l]))
+      Q, R = qr(randn(nvars[l], nvars[l]))
       U = Q * Diagonal(sign.(diag(R)))
       lower = minimum(minimum(Z, dims = 1))
       upper = maximum(maximum(Z, dims = 1))
