@@ -47,7 +47,7 @@ struct Hypers
   β::Float64
   τ_mean::Float64
   s2μ::Float64
-  function Hypers(td::TrainData; m = 20, k = 2, ν = 3.0, q = 0.9, α = 0.95, β = 2.0, τ_mean = 0.1)
+  function Hypers(td::TrainData; m = 200, k = 2, ν = 3.0, q = 0.9, α = 0.95, β = 2.0, τ_mean = 0.1)
     λ = 1 / quantile(InverseGamma(ν / 2, ν / (2 * td.s2ϵhat)), q)
     s2μ = (0.5 / (k*sqrt(m)))^2
     new(m, k, ν, λ, q, α, β, τ_mean, s2μ)

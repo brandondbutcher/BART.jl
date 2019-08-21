@@ -4,7 +4,7 @@
 
 function softbart(X::Matrix{Float64}, y::Vector{Float64}, opts::Opts = Opts())
   traindata = TrainData(X, y)
-  hypers = Hypers(traindata, m = 50)
+  hypers = Hypers(traindata)
   trees = initializetrees(traindata, hypers)
   yhat = treespredict(trees, traindata)
   s2e = traindata.s2ϵhat
