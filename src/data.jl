@@ -63,12 +63,13 @@ struct FriedmanRFG
   X::Matrix{Float64}
   yobs::Vector{Float64}
   ytrue::Vector{Float64}
-  σ2::Float64
-  function FriedmanRFG(n::Int64; p = 10, stn = 1.0, nfuns = 20)
+  σ::Float64
+  function FriedmanRFG(n::Int64; p = 10, snr = 1.0, nfuns = 20)
     X = collect(rand(MvNormal(repeat([0], p), 1), n)')
     a = rand(Uniform(-1, 1), nfuns)
     theta = 2.0
     nvars = Int64.(floor.(1.5 .+ rand(Exponential(theta), nfuns)))
+    nvars = [nv > p ? p : nv for nv in nvars]
     G = Matrix{Float64}(undef, n, nfuns)
     for l in 1:nfuns
       vars = sample(1:p, nvars[l], replace = false)
@@ -88,8 +89,8 @@ struct FriedmanRFG
       G[:,l] = g
     end
     ytrue = G * a
-    σ2 = stn * mean(abs.(ytrue .- median(ytrue)))
-    yobs = ytrue + rand(Normal(0, sqrt(σ2)), n)
-    new(X, yobs, ytrue, σ2)
+    σ = sqrt(1 / snr) * sqrt(pi/2) * mean(abs.(ytrue .- median(ytrue)))
+    yobs = ytrue + rand(Normal(0, σ), n)
+    new(X, yobs, ytrue, σ)
   end
 end
