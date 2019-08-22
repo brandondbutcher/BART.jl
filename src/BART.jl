@@ -19,6 +19,8 @@ module BART
     Tree
 
   export
+    Hypers
+    TrainData
     Opts
     Posterior
     FriedmanRFG
