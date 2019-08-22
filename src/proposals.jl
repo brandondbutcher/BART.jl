@@ -2,8 +2,9 @@
 ##### Gibbs and Metropolis-Hastings Proposals
 ###############################################################################
 
-## Initialize trees at stumps leaf parameter at the mean of scaled y
-## divided by the number of trees
+## Initialize trees at stumps
+## The initial leaf parameter at the root Node is the
+## mean of scaled y divided by the number of Trees
 function initializetrees(td::TrainData, hypers::Hypers)
   trees = Vector{Tree}(undef, hypers.m)
   mu = mean(td.ytrain) ./ hypers.m
@@ -13,7 +14,7 @@ function initializetrees(td::TrainData, hypers::Hypers)
   trees
 end
 
-## Probability a node is a Branch node
+## Probability a Node is a Branch
 function probgrow(d::Int64, hypers::Hypers)
   hypers.α * (1.0 + d) ^ (-hypers.β)
 end
@@ -47,9 +48,9 @@ end
 function log_tree_prior(leaf::Leaf, tree::Tree, hypers::Hypers, lp::Float64)
   d = depth(leaf, tree)
   lp + log(1 - probgrow(d, hypers))
-+end
+end
 
-## Probability that an observtion goes left at a given node
+## Probability that an observtion goes left at a given Branch
 function probleft(x::Vector{Float64}, branch::Branch, tree::Tree)
   1 / (1 + exp((x[branch.var] - branch.cut) / tree.tau))
 end
@@ -58,7 +59,7 @@ function probleft(X::Matrix{Float64}, branch::Branch, tree::Tree)
   1 ./ (1 .+ exp.((X[:,branch.var] .- branch.cut) ./ tree.tau))
 end
 
-## Probability that observations end up in the leaf nodes
+## Probability that observations end up in each Leaf
 function leafprob(x::Vector{Float64}, tree::Tree)
   if isa(tree.root, Leaf)
     return 1.0
@@ -98,7 +99,7 @@ function leafprob(X::Matrix{Float64}, tree::Tree)
   Phit
 end
 
-## Draw a new cut value for new proposed split
+## Draw a new cut value for the proposed split
 function drawcut(leaf::Leaf, var::Int64, tree::Tree, td::TrainData)
   branch = leaf
   lower = [td.xmin[:,var][1]]
@@ -122,7 +123,8 @@ function drawcut(leaf::Leaf, var::Int64, tree::Tree, td::TrainData)
   rand(Uniform(lower, upper))
 end
 
-## If the birthproposal is accepted birth the leaf node into a branch node
+## If the birthproposal is accepted
+## grow the Leaf into a Branch with two new Leafs
 function birthleaf!(leaf::Leaf, tree::Tree, branch::Branch)
   if isa(tree.root, Leaf)
     tree.root = branch
@@ -138,7 +140,7 @@ end
 
 ## Probability of making a birth proposal
 ## If the tree only has a root node, a birth proposal has to be made
-## Otherwise choose between a Birth or Death proposal with probability 1/2
+## Otherwise randomly choose a Birth or Death proposal with probability 0.5
 function birthprob(tree::Tree)
   isa(tree.root, Leaf) ? 1.0 : 0.5
 end
@@ -149,11 +151,11 @@ end
 
 ## The log ratio of the transition probabilities for a birth proposal
 function log_birth_trans(tree::Tree, Phi_prime::Matrix{Float64})
-  # Probability of transitioning from proposed tree back to the current tree
+  # Probability of transitioning from proposed Tree back to the current Tree
   pd = 1 - birthprob(Phi_prime)
   b = length(onlyparents(tree))
   numr = pd / b
-  # Probability of transitioning from the current tree to the proposed tree
+  # Probability of transitioning from the current Tree to the proposed Tree
   pb = birthprob(tree)
   Lt = length(leafnodes(tree))
   denomr = pb / Lt
@@ -168,7 +170,7 @@ function log_birth_tree(node::Node, tree::Tree, hypers::Hypers)
   log(numr) - log(denomr)
 end
 
-## Compute the mariginal log likelihood of the current tree residuals
+## Compute the mariginal log likelihood of the current Tree residuals
 function mll(rt::Vector{Float64}, Phi::Matrix{Float64}, s2e::Float64, hypers::Hypers, td::TrainData)
   Lt = size(Phi)[2]
   Omega = inv(transpose(Phi) * Phi / s2e + I / hypers.s2μ)
@@ -181,17 +183,18 @@ function mll(rt::Vector{Float64}, Phi::Matrix{Float64}, s2e::Float64, hypers::Hy
   mll
 end
 
-## Computed the marginal log likelihood of the proposed tree to the current tree
+## Computed the ratio of the marginal log likelihood
+## of the proposed tree to the current Tree
 function mllratio(rt::Vector{Float64}, Phi::Matrix{Float64}, Phi_prime::Matrix{Float64}, s2e::Float64, hypers::Hypers, td::TrainData)
   mllt = mll(rt, Phi, s2e, hypers, td)
   mllt_prime = mll(rt, Phi_prime, s2e, hypers, td)
   mllt_prime - mllt
 end
 
-## Function to get the leaf parameters
-## Returns a vector that will get post
+## Function to get the Leaf parameters
+## Returns a Vector that will get post
 ## multiplied by Phi to make predictions
-## at that given tree
+## at that given Tree
 function treemu(tree::Tree)
   [leaf.mu for leaf in leafnodes(tree)]
 end
@@ -238,7 +241,7 @@ function birthproposal!(tree::Tree, rt::Vector{Float64}, X::Matrix{Float64}, td:
   end
 end
 
-## The log ratio of the transition probabilities for a death proposal
+## The log ratio of the transition probabilities for a Death proposal
 function log_death_trans(tree::Tree, Phi_prime::Matrix{Float64})
   pb = birthprob(Phi_prime)
   pd = 1 - birthprob(tree)
@@ -249,13 +252,13 @@ function log_death_trans(tree::Tree, Phi_prime::Matrix{Float64})
   log(numr) - log(denomr)
 end
 
-## The log ratio of the tree probabilities
+## The log ratio of the Tree probabilities
 function log_death_tree(node::Node, tree::Tree, hypers::Hypers)
   -1.0*log_birth_tree(node, tree, hypers)
 end
 
-## If doing a death proposal, kill two leaf nodes of a randomly
-## selected branch
+## If doing a Death proposal, kill two Leaf Nodes of
+## a randomly selected Branch and turn the Branch into a Leaf
 function deathbranch!(branch::Branch, tree::Tree)
   if tree.root == branch
     tree.root = Leaf(0.0)
@@ -269,7 +272,7 @@ function deathbranch!(branch::Branch, tree::Tree)
   end
 end
 
-## Conduct a death proposal
+## Conduct a Death proposal
 function deathproposal!(tree::Tree, rt::Vector{Float64}, X::Matrix{Float64}, td::TrainData, s2e::Float64, hypers::Hypers)
   branch = rand(onlyparents(tree))
   indexes = findall(x -> (x == branch.left) || (x == branch.right), leafnodes(tree))
