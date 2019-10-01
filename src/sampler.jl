@@ -7,7 +7,7 @@ function softbart(X::Matrix{Float64}, y::Vector{Float64}, opts::Opts = Opts())
   hypers = Hypers(traindata)
   trees = initializetrees(traindata, hypers)
   yhat = treespredict(trees, traindata)
-  s2e = traindata.s2ϵhat
+  σ = traindata.σhat
   posterior = Posterior(
     Matrix{Float64}(undef, traindata.n, opts.ndraw),
     Vector{Float64}(undef, opts.ndraw)
@@ -16,16 +16,16 @@ function softbart(X::Matrix{Float64}, y::Vector{Float64}, opts::Opts = Opts())
     for tree in trees
       yhat_t = yhat .- treepredict(tree)
       rt = traindata.ytrain .- yhat_t
-      updatetree!(tree, rt, X, traindata, s2e, hypers)
-      updatetau!(X, rt, tree, s2e, traindata, hypers)
-      updatemu!(tree, rt, s2e, hypers)
+      updatetree!(tree, rt, X, traindata, σ^2, hypers)
+      updateλ!(X, rt, tree, σ^2, traindata, hypers)
+      updateμ!(tree, rt, σ^2, hypers)
       yhat = yhat_t .+ treepredict(tree)
     end
     yhat = treespredict(trees, traindata)
-    s2e = updatesigma(yhat, traindata, hypers)
+    σ = updateσ(yhat, traindata, hypers)
     if s > opts.nburn
-      posterior.yhat[:,s - opts.nburn] = unstandardize(yhat, traindata)
-      posterior.σ2[s - opts.nburn] = (traindata.ymax - traindata.ymin)^2 * s2e
+      posterior.fdraws[:,s - opts.nburn] = yhat .+ traindata.ybar
+      posterior.σdraws[s - opts.nburn] = σ
     end
     if s % 100 == 0
       println("MCMC iteration $s complete.")

@@ -7,5 +7,5 @@ function StatsBase.predict(X::Matrix{Float64}, trees::Vector{Tree}, td::TrainDat
   for tree in trees
     yhat += leafprob(X, tree) * treemu(tree)
   end
-  unstandardize(yhat, td)
+  yhat .+ td.ybar
 end

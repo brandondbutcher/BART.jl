@@ -4,7 +4,7 @@ module BART
   using LinearAlgebra
   using StatsBase
 
-  include("treestruct.jl")
+  include("trees.jl")
   include("treeutils.jl")
   include("data.jl")
   include("proposals.jl")
@@ -23,7 +23,6 @@ module BART
     TrainData
     Opts
     Posterior
-    FriedmanRFG
 
   export
     softbart

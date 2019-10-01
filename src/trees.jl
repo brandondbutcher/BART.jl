@@ -12,11 +12,11 @@ mutable struct Branch <: Node
 end
 
 mutable struct Leaf <: Node
-  mu::Float64
+  μ::Float64
 end
 
 mutable struct Tree
   root::Node
-  tau::Float64
-  Phi::Matrix{Float64}
+  λ::Float64
+  S::Matrix{Float64}
 end
