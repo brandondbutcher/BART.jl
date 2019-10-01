@@ -58,39 +58,3 @@ struct Posterior
   yhat::Matrix{Float64}
   σ2::Vector{Float64}
 end
-
-struct FriedmanRFG
-  X::Matrix{Float64}
-  yobs::Vector{Float64}
-  ytrue::Vector{Float64}
-  σ::Float64
-  function FriedmanRFG(n::Int64; p = 10, snr = 1.0, nfuns = 20)
-    X = collect(rand(MvNormal(repeat([0], p), 1), n)')
-    a = rand(Uniform(-1, 1), nfuns)
-    theta = 2.0
-    nvars = Int64.(floor.(1.5 .+ rand(Exponential(theta), nfuns)))
-    nvars = [nv > p ? p : nv for nv in nvars]
-    G = Matrix{Float64}(undef, n, nfuns)
-    for l in 1:nfuns
-      vars = sample(1:p, nvars[l], replace = false)
-      Z = X[:,vars]
-      mu = rand(MvNormal(repeat([0], nvars[l]), 1))
-      Q, R = qr(randn(nvars[l], nvars[l]))
-      U = Q * Diagonal(sign.(diag(R)))
-      lower = minimum(minimum(Z, dims = 1))
-      upper = maximum(maximum(Z, dims = 1))
-      d = rand(Uniform(lower, upper), nvars[l]).^2
-      D = Matrix(Diagonal(d))
-      V = U * D * U'
-      g = Vector{Float64}(undef, n)
-      for i in 1:n
-        g[i] = exp(-0.5 * (Z[i,:] - mu)' * V * (Z[i,:] - mu))
-      end
-      G[:,l] = g
-    end
-    ytrue = G * a
-    σ = sqrt(1 / snr) * sqrt(pi/2) * mean(abs.(ytrue .- median(ytrue)))
-    yobs = ytrue + rand(Normal(0, σ), n)
-    new(X, yobs, ytrue, σ)
-  end
-end
