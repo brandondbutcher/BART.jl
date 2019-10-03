@@ -33,8 +33,9 @@ struct Opts
   nburn::Int64
   ndraw::Int64
   nthin::Int64
+  S::Int64
   function Opts(;nburn = 100, ndraw = 1000, nthin = 1)
-    new(nburn, ndraw, nthin)
+    new(nburn, ndraw, nthin, nburn + ndraw)
   end
 end
 
@@ -73,10 +74,30 @@ end
 
 
 ###############################################################################
-##### Data structure for posterior draws
+##### Data structure for state of sampler and posterior draws
 ###############################################################################
+
+mutable struct BartState
+  trees::Vector{Tree}
+  σ::Float64
+  yhat::Vector{Float64}
+  function BartState(bm::BartModel)
+    trees = Vector{Tree}(undef, bm.hypers.m)
+    μ = mean(bm.td.y) ./ bm.hypers.m
+    for t in 1:bm.hypers.m
+      trees[t] = Tree(Leaf(μ), bm.hypers.λmean, ones(bm.td.n, 1))
+    end
+    new(trees, bm.td.σhat, repeat([μ*bm.hypers.m], bm.td.n))
+  end
+end
 
 struct Posterior
   fdraws::Matrix{Float64}
   σdraws::Vector{Float64}
+  function Posterior(bm::BartModel)
+    new(
+      Matrix{Float64}(undef, bm.td.n, bm.opts.ndraw),
+      Vector{Float64}(undef, bm.opts.ndraw)
+    )
+  end
 end
