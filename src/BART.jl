@@ -6,7 +6,7 @@ module BART
 
   include("trees.jl")
   include("treeutils.jl")
-  include("data.jl")
+  include("models.jl")
   include("proposals.jl")
   include("predict.jl")
   include("preprocess.jl")
@@ -22,9 +22,10 @@ module BART
     Hypers
     TrainData
     Opts
+    BartModel
     Posterior
 
   export
-    softbart
+    fit
 
 end

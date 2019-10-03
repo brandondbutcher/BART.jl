@@ -2,30 +2,28 @@
 ##### SoftBART MCMC sampler
 ###############################################################################
 
-function softbart(X::Matrix{Float64}, y::Vector{Float64}, opts::Opts = Opts())
-  traindata = TrainData(X, y)
-  hypers = Hypers(traindata)
-  trees = initializetrees(traindata, hypers)
-  yhat = treespredict(trees, traindata)
-  σ = traindata.σhat
+function StatsBase.fit(bartmodel::BartModel)
+  trees = initializetrees(bartmodel)
+  yhat = treespredict(trees, bartmodel)
+  σ = bartmodel.td.σhat
   posterior = Posterior(
-    Matrix{Float64}(undef, traindata.n, opts.ndraw),
-    Vector{Float64}(undef, opts.ndraw)
+    Matrix{Float64}(undef, bartmodel.td.n, bartmodel.opts.ndraw),
+    Vector{Float64}(undef, bartmodel.opts.ndraw)
   )
-  @time for s in 1:(opts.nburn + opts.ndraw)
+  @time for s in 1:(bartmodel.opts.nburn + bartmodel.opts.ndraw)
     for tree in trees
       yhat_t = yhat .- treepredict(tree)
-      rt = traindata.ytrain .- yhat_t
-      updatetree!(tree, rt, X, traindata, σ^2, hypers)
-      updateλ!(X, rt, tree, σ^2, traindata, hypers)
-      updateμ!(tree, rt, σ^2, hypers)
+      rt = bartmodel.td.y .- yhat_t
+      updateT!(tree, rt, σ^2, bartmodel)
+      updateλ!(rt, tree, σ^2, bartmodel)
+      updateμ!(tree, rt, σ^2, bartmodel)
       yhat = yhat_t .+ treepredict(tree)
     end
-    yhat = treespredict(trees, traindata)
-    σ = updateσ(yhat, traindata, hypers)
-    if s > opts.nburn
-      posterior.fdraws[:,s - opts.nburn] = yhat .+ traindata.ybar
-      posterior.σdraws[s - opts.nburn] = σ
+    yhat = treespredict(trees, bartmodel)
+    σ = updateσ(yhat, bartmodel)
+    if s > bartmodel.opts.nburn
+      posterior.fdraws[:,s - bartmodel.opts.nburn] = yhat .+ bartmodel.td.ybar
+      posterior.σdraws[s - bartmodel.opts.nburn] = σ
     end
     if s % 100 == 0
       println("MCMC iteration $s complete.")

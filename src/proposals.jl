@@ -5,49 +5,49 @@
 ## Initialize trees at stumps
 ## The initial leaf parameter at the root Node is the
 ## mean of scaled y divided by the number of Trees
-function initializetrees(td::TrainData, hypers::Hypers)
-  trees = Vector{Tree}(undef, hypers.m)
-  μ = mean(td.ytrain) ./ hypers.m
-  for t in 1:hypers.m
-    trees[t] = Tree(Leaf(μ), hypers.λmean, ones(td.n, 1))
+function initializetrees(bm::BartModel)
+  trees = Vector{Tree}(undef, bm.hypers.m)
+  μ = mean(bm.td.y) ./ bm.hypers.m
+  for t in 1:bm.hypers.m
+    trees[t] = Tree(Leaf(μ), bm.hypers.λmean, ones(bm.td.n, 1))
   end
   trees
 end
 
 ## Probability a Node is a Branch
-function probgrow(d::Int64, hypers::Hypers)
-  hypers.α * (1.0 + d) ^ (-hypers.β)
+function probgrow(d::Int64, bm::BartModel)
+  bm.hypers.α * (1.0 + d) ^ (-bm.hypers.β)
 end
 
 ## Prior probability of a Tree
-function log_tree_prior(tree::Tree, hypers::Hypers)
+function log_tree_prior(tree::Tree, bm::BartModel)
   if isa(tree.root, Leaf)
     d = depth(tree.root, tree)
-    return log(1 - probgrow(d, hypers))
+    return log(1 - probgrow(d, bm))
   end
-  lp = log(probgrow(depth(tree.root, tree), hypers))
-  log_tree_prior(tree.root.left, tree, hypers, lp) +
-    log_tree_prior(tree.root.right, tree, hypers, lp)
+  lp = log(probgrow(depth(tree.root, tree), bm))
+  log_tree_prior(tree.root.left, tree, bm, lp) +
+    log_tree_prior(tree.root.right, tree, bm, lp)
 end
 
-function log_tree_prior(trees::Vector{T} where T <: Tree, hypers::Hypers)
+function log_tree_prior(trees::Vector{Tree}, bm::BartModel)
   ltp = 0
   for tree in trees
-    ltp += log_tree_prior(tree, hypers)
+    ltp += log_tree_prior(tree, bm)
   end
   ltp
 end
 
-function log_tree_prior(branch::Branch, tree::Tree, hypers::Hypers, lp::Float64)
+function log_tree_prior(branch::Branch, tree::Tree, bm::BartModel, lp::Float64)
   d = depth(branch, tree)
-  lp = lp + log(probgrow(d, hypers))
-  log_tree_prior(branch.left, tree, hypers, lp) +
-    log_tree_prior(branch.right, tree, hypers, lp)
+  lp = lp + log(probgrow(d, bm))
+  log_tree_prior(branch.left, tree, bm, lp) +
+    log_tree_prior(branch.right, tree, bm, lp)
 end
 
-function log_tree_prior(leaf::Leaf, tree::Tree, hypers::Hypers, lp::Float64)
+function log_tree_prior(leaf::Leaf, tree::Tree, bm::BartModel, lp::Float64)
   d = depth(leaf, tree)
-  lp + log(1 - probgrow(d, hypers))
+  lp + log(1 - probgrow(d, bm))
 end
 
 ## Probability that an observtion goes left at a given Branch
@@ -82,9 +82,9 @@ function leafprob(x::Vector{Float64}, leaf::Leaf, tree::Tree, psi::Float64, S::V
   push!(S, psi)
 end
 
-function leafprob(X::Matrix{Float64}, tree::Tree, td::TrainData)
-  St = zeros(td.n, length(leafnodes(tree)))
-  for i in 1:td.n
+function leafprob(X::Matrix{Float64}, tree::Tree, bm::BartModel)
+  St = zeros(bm.td.n, length(leafnodes(tree)))
+  for i in 1:bm.td.n
     St[i,:] .= leafprob(X[i,:], tree)
   end
   St
@@ -100,10 +100,10 @@ function leafprob(X::Matrix{Float64}, tree::Tree)
 end
 
 ## Draw a new cut value for the proposed split
-function drawcut(leaf::Leaf, var::Int64, tree::Tree, td::TrainData)
+function drawcut(leaf::Leaf, var::Int64, tree::Tree, bm::BartModel)
   branch = leaf
-  lower = [td.xmin[:,var][1]]
-  upper = [td.xmax[:,var][1]]
+  lower = [bm.td.xmin[:,var][1]]
+  upper = [bm.td.xmax[:,var][1]]
   check = branch == tree.root ? false : true
   while check
     left = isleft(branch, tree)
@@ -163,21 +163,21 @@ function log_birth_trans(tree::Tree, S_prime::Matrix{Float64})
 end
 
 ## The log ratio of the tree probabilities
-function log_birth_tree(node::Node, tree::Tree, hypers::Hypers)
+function log_birth_tree(node::Node, tree::Tree, bm::BartModel)
   d = depth(node, tree)
-  numr = probgrow(d, hypers) * (1 - probgrow(d + 1, hypers)) ^ 2
-  denomr = 1 - probgrow(d, hypers)
+  numr = probgrow(d, bm) * (1 - probgrow(d + 1, bm)) ^ 2
+  denomr = 1 - probgrow(d, bm)
   log(numr) - log(denomr)
 end
 
 ## Compute the mariginal log likelihood of the current Tree residuals
-function mll(rt::Vector{Float64}, S::Matrix{Float64}, s2e::Float64, hypers::Hypers, td::TrainData)
+function mll(rt::Vector{Float64}, S::Matrix{Float64}, s2e::Float64, bm::BartModel)
   Lt = size(S)[2]
-  Omega = inv(transpose(S) * S / s2e + I / hypers.τ)
+  Omega = inv(transpose(S) * S / s2e + I / bm.hypers.τ)
   rhat = transpose(S) * rt / s2e
   mll = 0.5 * logdet(2 * pi * Omega)
-  mll -= 0.5 * td.n * log(2 * pi * s2e)
-  mll -= 0.5 * Lt * log(2 * pi * hypers.τ)
+  mll -= 0.5 * bm.td.n * log(2 * pi * s2e)
+  mll -= 0.5 * Lt * log(2 * pi * bm.hypers.τ)
   mll -= 0.5 * dot(rt, rt) / s2e
   mll += 0.5 * dot(rhat, Omega * rhat)
   mll
@@ -185,9 +185,9 @@ end
 
 ## Computed the ratio of the marginal log likelihood
 ## of the proposed tree to the current Tree
-function mllratio(rt::Vector{Float64}, S::Matrix{Float64}, S_prime::Matrix{Float64}, s2e::Float64, hypers::Hypers, td::TrainData)
-  mllt = mll(rt, S, s2e, hypers, td)
-  mllt_prime = mll(rt, S_prime, s2e, hypers, td)
+function mllratio(rt::Vector{Float64}, S::Matrix{Float64}, S_prime::Matrix{Float64}, s2e::Float64, bm::BartModel)
+  mllt = mll(rt, S, s2e, bm)
+  mllt_prime = mll(rt, S_prime, s2e, bm)
   mllt_prime - mllt
 end
 
@@ -205,8 +205,8 @@ function treepredict(tree::Tree)
 end
 
 ## Function to get yhat on the transformed scale of y
-function treespredict(trees::Vector{Tree}, td::TrainData)
-  yhat = zeros(td.n)
+function treespredict(trees::Vector{Tree}, bm::BartModel)
+  yhat = zeros(bm.td.n)
   for tree in trees
     yhat += treepredict(tree)
   end
@@ -214,25 +214,25 @@ function treespredict(trees::Vector{Tree}, td::TrainData)
 end
 
 ## Conduct a Birth proposal
-function birthproposal!(tree::Tree, rt::Vector{Float64}, X::Matrix{Float64}, td::TrainData, s2e::Float64, hypers::Hypers)
+function birthproposal!(tree::Tree, rt::Vector{Float64}, s2e::Float64, bm::BartModel)
   leaves = leafnodes(tree)
   leaf = rand(leaves)
   index = findall(x -> x == leaf, leaves)[1]
-  newvar = rand(1:td.p)
-  newcut = drawcut(leaf, newvar, tree, td)
+  newvar = rand(1:bm.td.p)
+  newcut = drawcut(leaf, newvar, tree, bm)
   branch = Branch(newvar, newcut, Leaf(0.0), Leaf(0.0))
-  goesleft = tree.S[:,index] .* probleft(X, branch, tree)
+  goesleft = tree.S[:,index] .* probleft(bm.td.X, branch, tree)
   goesright = tree.S[:,index] .- goesleft
   if size(tree.S)[2] == 1
     S_prime = hcat(goesleft, goesright)
   else
     indices = [index, index + 1]
-    S_prime = zeros(td.n, length(leaves) + 1)
+    S_prime = zeros(bm.td.n, length(leaves) + 1)
     S_prime[:,indices] = hcat(goesleft, goesright)
     S_prime[:,setdiff(1:end, indices)] = tree.S[:,setdiff(1:end, index)]
   end
-  mloglikratio = mllratio(rt, tree.S, S_prime, s2e, hypers, td)
-  treeratio = log_birth_tree(leaf, tree, hypers)
+  mloglikratio = mllratio(rt, tree.S, S_prime, s2e, bm)
+  treeratio = log_birth_tree(leaf, tree, bm)
   transratio = log_birth_trans(tree, S_prime)
   logr = mloglikratio + treeratio + transratio
   if log(rand()) < logr
@@ -253,8 +253,8 @@ function log_death_trans(tree::Tree, S_prime::Matrix{Float64})
 end
 
 ## The log ratio of the Tree probabilities
-function log_death_tree(node::Node, tree::Tree, hypers::Hypers)
-  -1.0*log_birth_tree(node, tree, hypers)
+function log_death_tree(node::Node, tree::Tree, bm::BartModel)
+  -1.0*log_birth_tree(node, tree, bm)
 end
 
 ## If doing a Death proposal, kill two Leaf Nodes of
@@ -273,15 +273,15 @@ function deathbranch!(branch::Branch, tree::Tree)
 end
 
 ## Conduct a Death proposal
-function deathproposal!(tree::Tree, rt::Vector{Float64}, X::Matrix{Float64}, td::TrainData, s2e::Float64, hypers::Hypers)
+function deathproposal!(tree::Tree, rt::Vector{Float64}, s2e::Float64, bm::BartModel)
   branch = rand(onlyparents(tree))
   indexes = findall(x -> (x == branch.left) || (x == branch.right), leafnodes(tree))
   lp = sum(tree.S[:,indexes], dims = 2)
   S_prime = copy(tree.S)
   S_prime[:,indexes[1]] = lp
   S_prime = S_prime[:,1:end .!= indexes[2]]
-  mloglikratio = mllratio(rt, tree.S, S_prime, s2e, hypers, td)
-  treeratio = log_death_tree(branch, tree, hypers)
+  mloglikratio = mllratio(rt, tree.S, S_prime, s2e, bm)
+  treeratio = log_death_tree(branch, tree, bm)
   transratio = log_death_trans(tree, S_prime)
   logr = mloglikratio + treeratio + transratio
   if log(rand()) < logr
@@ -291,25 +291,25 @@ function deathproposal!(tree::Tree, rt::Vector{Float64}, X::Matrix{Float64}, td:
 end
 
 ## Function to perform Metropolis-Hastings step for a single Tree update
-function updatetree!(tree::Tree, rt::Vector{Float64}, X::Matrix{Float64}, td::TrainData, s2e::Float64, hypers::Hypers)
+function updateT!(tree::Tree, rt::Vector{Float64}, s2e::Float64, bm::BartModel)
   if rand() < birthprob(tree)
-    birthproposal!(tree, rt, X, td, s2e, hypers)
+    birthproposal!(tree, rt, s2e, bm)
   else
-    deathproposal!(tree, rt, X, td, s2e, hypers)
+    deathproposal!(tree, rt, s2e, bm)
   end
 end
 
 ## Function to perform Metropolis-Hastings step to update λ on a single Tree
-function updateλ!(X::Matrix{Float64}, rt::Vector{Float64}, tree::Tree, s2e::Float64, td::TrainData, hypers::Hypers)
+function updateλ!(rt::Vector{Float64}, tree::Tree, s2e::Float64, bm::BartModel)
   St_λ = tree.S
-  mllt_λ = mll(rt, tree.S, s2e, hypers, td)
-  lp_λ = logpdf(Exponential(hypers.λmean), tree.λ)
+  mllt_λ = mll(rt, tree.S, s2e, bm)
+  lp_λ = logpdf(Exponential(bm.hypers.λmean), tree.λ)
   log_λ = log(tree.λ)
   log_λprime = log(tree.λ) + rand(Uniform(-1, 1))
   tree.λ = exp(log_λprime)
-  tree.S = leafprob(X, tree, td)
-  mllt_λprime = mll(rt, tree.S, s2e, hypers, td)
-  lp_λprime = logpdf(Exponential(hypers.λmean), tree.λ)
+  tree.S = leafprob(bm.td.X, tree, bm)
+  mllt_λprime = mll(rt, tree.S, s2e, bm)
+  lp_λprime = logpdf(Exponential(bm.hypers.λmean), tree.λ)
   logr = mllt_λprime + lp_λprime + log_λprime - (mllt_λ + lp_λ + log_λ)
   if log(rand()) >= logr
     tree.λ = exp(log_λ)
@@ -318,8 +318,8 @@ function updateλ!(X::Matrix{Float64}, rt::Vector{Float64}, tree::Tree, s2e::Flo
 end
 
 ## Gibbs step to update leaf parameters for a single Tree
-function updateμ!(tree::Tree, rt::Vector{Float64}, s2e::Float64, hypers::Hypers)
-  Omega = inv(transpose(tree.S) * tree.S / s2e + I / hypers.τ)
+function updateμ!(tree::Tree, rt::Vector{Float64}, s2e::Float64, bm::BartModel)
+  Omega = inv(transpose(tree.S) * tree.S / s2e + I / bm.hypers.τ)
   rhat = transpose(tree.S) * rt / s2e
   newμ = rand(MvNormal(Omega * rhat, Symmetric(Omega)))
   leaves = leafnodes(tree)
@@ -329,9 +329,9 @@ function updateμ!(tree::Tree, rt::Vector{Float64}, s2e::Float64, hypers::Hypers
 end
 
 ## Gibbs step to update error variance
-function updateσ(yhat::Vector{Float64}, td::TrainData, hypers::Hypers)
-  residual = td.ytrain - yhat
-  a = 0.5 * (hypers.ν + td.n)
-  b = 0.5 * (hypers.ν * hypers.δ + sum(residual.^2))
+function updateσ(yhat::Vector{Float64}, bm::BartModel)
+  residual = bm.td.y - yhat
+  a = 0.5 * (bm.hypers.ν + bm.td.n)
+  b = 0.5 * (bm.hypers.ν * bm.hypers.δ + sum(residual.^2))
   sqrt(rand(InverseGamma(a, b)))
 end
