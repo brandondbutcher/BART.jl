@@ -9,7 +9,6 @@ module BART
   include("models.jl")
   include("proposals.jl")
   include("predict.jl")
-  include("preprocess.jl")
   include("sampler.jl")
 
   export
