@@ -159,24 +159,13 @@ function log_birth_tree(node::Node, tree::Tree, bm::BartModel)
 end
 
 ## Compute the mariginal log likelihood of the current Tree residuals
-function mll(rt::Vector{Float64}, S::Matrix{Float64}, bs::BartState, bm::BartModel)
-  Lt = size(S)[2]
-  Omega = inv(transpose(S) * S / bs.σ^2 + I / bm.hypers.τ)
-  rhat = transpose(S) * rt / bs.σ^2
-  mll = 0.5 * logdet(2 * pi * Omega)
+function mll(rt::Vector{Float64}, ss::SuffStats, bs::BartState, bm::BartModel)
+  mll = 0.5 * logdet(2 * pi * ss.Ω)
   mll -= 0.5 * bm.td.n * log(2 * pi * bs.σ^2)
-  mll -= 0.5 * Lt * log(2 * pi * bm.hypers.τ)
+  mll -= 0.5 * ss.Lt * log(2 * pi * bm.hypers.τ)
   mll -= 0.5 * dot(rt, rt) / bs.σ^2
-  mll += 0.5 * dot(rhat, Omega * rhat)
+  mll += 0.5 * dot(ss.rhat, ss.Ω * ss.rhat)
   mll
-end
-
-## Computed the ratio of the marginal log likelihood
-## of the proposed tree to the current Tree
-function mllratio(rt::Vector{Float64}, S::Matrix{Float64}, S_prime::Matrix{Float64}, bs::BartState, bm::BartModel)
-  mllt = mll(rt, S, bs, bm)
-  mllt_prime = mll(rt, S_prime, bs, bm)
-  mllt_prime - mllt
 end
 
 ## Conduct a Birth proposal
@@ -197,13 +186,16 @@ function birthproposal!(tree::Tree, rt::Vector{Float64}, bs::BartState, bm::Bart
     S_prime[:,indices] = hcat(goesleft, goesright)
     S_prime[:,setdiff(1:end, indices)] = tree.S[:,setdiff(1:end, index)]
   end
-  mloglikratio = mllratio(rt, tree.S, S_prime, bs, bm)
+  tree.ss = suffstats(rt, tree.S, bs, bm)
+  ss_prime = suffstats(rt, S_prime, bs, bm)
+  mloglikratio = mll(rt, ss_prime, bs, bm) - mll(rt, tree.ss, bs, bm)
   treeratio = log_birth_tree(leaf, tree, bm)
   transratio = log_birth_trans(tree, S_prime)
   logr = mloglikratio + treeratio + transratio
   if log(rand()) < logr
     birthleaf!(leaf, tree, branch)
     tree.S = S_prime
+    tree.ss = ss_prime
   end
 end
 
@@ -246,13 +238,16 @@ function deathproposal!(tree::Tree, rt::Vector{Float64}, bs::BartState, bm::Bart
   S_prime = copy(tree.S)
   S_prime[:,indexes[1]] = lp
   S_prime = S_prime[:,1:end .!= indexes[2]]
-  mloglikratio = mllratio(rt, tree.S, S_prime, bs, bm)
+  tree.ss = suffstats(rt, tree.S, bs, bm)
+  ss_prime = suffstats(rt, S_prime, bs, bm)
+  mloglikratio = mll(rt, ss_prime, bs, bm) - mll(rt, tree.ss, bs, bm)
   treeratio = log_death_tree(branch, tree, bm)
   transratio = log_death_trans(tree, S_prime)
   logr = mloglikratio + treeratio + transratio
   if log(rand()) < logr
     deathbranch!(branch, tree)
     tree.S = S_prime
+    tree.ss = ss_prime
   end
 end
 
@@ -267,19 +262,19 @@ end
 
 ## Function to perform Metropolis-Hastings step to update λ on a single Tree
 function drawλ!(tree::Tree, rt::Vector{Float64}, bs::BartState, bm::BartModel)
-  St_λ = tree.S
-  mllt_λ = mll(rt, tree.S, bs, bm)
   lp_λ = logpdf(Exponential(bm.hypers.λmean), tree.λ)
   log_λ = log(tree.λ)
-  log_λprime = log(tree.λ) + rand(Uniform(-1, 1))
+  log_λprime = log_λ + rand(Uniform(-1, 1))
   tree.λ = exp(log_λprime)
-  tree.S = leafprob(bm.td.X, tree, bm)
-  mllt_λprime = mll(rt, tree.S, bs, bm)
   lp_λprime = logpdf(Exponential(bm.hypers.λmean), tree.λ)
-  logr = mllt_λprime + lp_λprime + log_λprime - (mllt_λ + lp_λ + log_λ)
-  if log(rand()) >= logr
+  S_prime = leafprob(bm.td.X, tree, bm)
+  ss_prime = suffstats(rt, S_prime, bs, bm)
+  logr = mll(rt, ss_prime, bs, bm) + lp_λprime + log_λprime - (mll(rt, tree.ss, bs, bm) + lp_λ + log_λ)
+  if log(rand()) < logr
+    tree.S = S_prime
+    tree.ss = ss_prime
+  else
     tree.λ = exp(log_λ)
-    tree.S = St_λ
   end
 end
 

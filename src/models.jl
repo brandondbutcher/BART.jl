@@ -58,7 +58,7 @@ end
 
 
 ###############################################################################
-##### BartModel type
+##### BartModel
 ###############################################################################
 
 struct BartModel
@@ -74,7 +74,7 @@ end
 
 
 ###############################################################################
-##### Data structure for state of sampler and posterior draws
+##### State of sampler
 ###############################################################################
 
 mutable struct BartState
@@ -84,12 +84,29 @@ mutable struct BartState
   function BartState(bm::BartModel)
     trees = Vector{Tree}(undef, bm.hypers.m)
     μ = mean(bm.td.y) ./ bm.hypers.m
+    S = ones(bm.td.n, 1)
+    Ω = inv(transpose(S) * S / bm.td.σhat^2 + I / bm.hypers.τ)
+    rhat = transpose(S) * bm.td.y / bm.td.σhat^2
+    ss = SuffStats(1, Ω, rhat)
     for t in 1:bm.hypers.m
-      trees[t] = Tree(Leaf(μ), bm.hypers.λmean, ones(bm.td.n, 1))
+      trees[t] = Tree(Leaf(μ), bm.hypers.λmean, S, ss)
     end
     new(trees, bm.td.σhat, repeat([μ*bm.hypers.m], bm.td.n))
   end
 end
+
+function suffstats(rt, S, bs, bm)
+  Lt = size(S, 2)
+  Ω = inv(transpose(S) * S / bs.σ^2 + I / bm.hypers.τ)
+  rhat = transpose(S) * rt / bs.σ^2
+  ss = SuffStats(Lt, Ω, rhat)
+  SuffStats(Lt, Ω, rhat)
+end
+
+
+###############################################################################
+##### Posterior draws from BART model
+###############################################################################
 
 struct Posterior
   fdraws::Matrix{Float64}

@@ -5,11 +5,10 @@ module BART
   using StatsBase
 
   include("trees.jl")
-  include("treeutils.jl")
   include("models.jl")
   include("proposals.jl")
   include("predict.jl")
-  include("sampler.jl")
+  include("fit.jl")
 
   export
     Node
