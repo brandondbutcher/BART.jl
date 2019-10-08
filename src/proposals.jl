@@ -79,7 +79,7 @@ function leafprob(X::Matrix{Float64}, tree::Tree, bm::BartModel)
 end
 
 function leafprob(X::Matrix{Float64}, tree::Tree)
-  n = size(X)[1]
+  n = size(X, 1)
   St = zeros(n, length(leafnodes(tree)))
   for i in 1:n
     St[i,:] .= leafprob(X[i,:], tree)
@@ -134,7 +134,7 @@ function birthprob(tree::Tree)
 end
 
 function birthprob(S::Matrix{Float64})
-  size(S)[2] == 1 ? 1.0 : 0.5
+  size(S, 2) == 1 ? 1.0 : 0.5
 end
 
 ## The log ratio of the transition probabilities for a birth proposal
@@ -171,14 +171,14 @@ end
 ## Conduct a Birth proposal
 function birthproposal!(tree::Tree, rt::Vector{Float64}, bs::BartState, bm::BartModel)
   leaves = leafnodes(tree)
-  leaf = rand(leaves)
-  index = findall(x -> x == leaf, leaves)[1]
+  index = rand(1:length(leaves))
+  leaf = leaves[index]
   newvar = rand(1:bm.td.p)
   newcut = drawcut(leaf, newvar, tree, bm)
   branch = Branch(newvar, newcut, Leaf(0.0), Leaf(0.0))
   goesleft = tree.S[:,index] .* probleft(bm.td.X, branch, tree)
   goesright = tree.S[:,index] .- goesleft
-  if size(tree.S)[2] == 1
+  if size(tree.S, 2) == 1
     S_prime = hcat(goesleft, goesright)
   else
     indices = [index, index + 1]
@@ -234,9 +234,8 @@ end
 function deathproposal!(tree::Tree, rt::Vector{Float64}, bs::BartState, bm::BartModel)
   branch = rand(onlyparents(tree))
   indexes = findall(x -> (x == branch.left) || (x == branch.right), leafnodes(tree))
-  lp = sum(tree.S[:,indexes], dims = 2)
   S_prime = copy(tree.S)
-  S_prime[:,indexes[1]] = lp
+  S_prime[:,indexes[1]] = sum(tree.S[:,indexes], dims = 2)
   S_prime = S_prime[:,1:end .!= indexes[2]]
   tree.ss = suffstats(rt, tree.S, bs, bm)
   ss_prime = suffstats(rt, S_prime, bs, bm)
@@ -269,7 +268,8 @@ function drawλ!(tree::Tree, rt::Vector{Float64}, bs::BartState, bm::BartModel)
   lp_λprime = logpdf(Exponential(bm.hypers.λmean), tree.λ)
   S_prime = leafprob(bm.td.X, tree, bm)
   ss_prime = suffstats(rt, S_prime, bs, bm)
-  logr = mll(rt, ss_prime, bs, bm) + lp_λprime + log_λprime - (mll(rt, tree.ss, bs, bm) + lp_λ + log_λ)
+  logr = mll(rt, ss_prime, bs, bm) + lp_λprime + log_λprime -
+    (mll(rt, tree.ss, bs, bm) + lp_λ + log_λ)
   if log(rand()) < logr
     tree.S = S_prime
     tree.ss = ss_prime

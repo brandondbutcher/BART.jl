@@ -13,7 +13,7 @@ struct TrainData
   σhat::Float64
   function TrainData(X::Matrix{Float64}, y::Vector{Float64})
     n = length(y)
-    p = size(X)[2]
+    p = size(X, 2)
     ybar = mean(y)
     Q = Matrix(qr(X).Q)
     y = y .- ybar
