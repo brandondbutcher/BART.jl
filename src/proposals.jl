@@ -28,7 +28,7 @@ end
 
 function log_tree_prior(branch::Branch, tree::Tree, bm::BartModel, lp::Float64)
   d = depth(branch, tree)
-  lp = lp + log(probgrow(d, bm))
+  lp += log(probgrow(d, bm))
   log_tree_prior(branch.left, tree, bm, lp) +
     log_tree_prior(branch.right, tree, bm, lp)
 end
@@ -71,20 +71,20 @@ function leafprob(x::Vector{Float64}, leaf::Leaf, tree::Tree, psi::Float64, S::V
 end
 
 function leafprob(X::Matrix{Float64}, tree::Tree, bm::BartModel)
-  St = zeros(bm.td.n, length(leafnodes(tree)))
+  S = zeros(bm.td.n, tree.ss.Lt)
   for i in 1:bm.td.n
-    St[i,:] .= leafprob(X[i,:], tree)
+    S[i,:] .= leafprob(X[i,:], tree)
   end
-  St
+  S
 end
 
 function leafprob(X::Matrix{Float64}, tree::Tree)
   n = size(X, 1)
-  St = zeros(n, length(leafnodes(tree)))
+  S = zeros(n, tree.ss.Lt)
   for i in 1:n
-    St[i,:] .= leafprob(X[i,:], tree)
+    S[i,:] .= leafprob(X[i,:], tree)
   end
-  St
+  S
 end
 
 ## Draw a new cut value for the proposed split
@@ -140,13 +140,9 @@ end
 ## The log ratio of the transition probabilities for a birth proposal
 function log_birth_trans(tree::Tree, S_prime::Matrix{Float64})
   # Probability of transitioning from proposed Tree back to the current Tree
-  pd = 1 - birthprob(S_prime)
-  b = length(onlyparents(tree))
-  numr = pd / b
+  numr = (1 - birthprob(S_prime)) / (tree.ss.Lt - 1)
   # Probability of transitioning from the current Tree to the proposed Tree
-  pb = birthprob(tree)
-  Lt = length(leafnodes(tree))
-  denomr = pb / Lt
+  denomr = birthprob(tree) / tree.ss.Lt
   log(numr) - log(denomr)
 end
 
@@ -201,12 +197,8 @@ end
 
 ## The log ratio of the transition probabilities for a Death proposal
 function log_death_trans(tree::Tree, S_prime::Matrix{Float64})
-  pb = birthprob(S_prime)
-  pd = 1 - birthprob(tree)
-  Lt = length(leafnodes(tree))
-  b = length(onlyparents(tree))
-  numr = pb / (Lt - 1)
-  denomr = pd / b
+  numr = birthprob(S_prime) / (tree.ss.Lt - 1)
+  denomr = (1 - birthprob(tree)) / (tree.ss.Lt - 1)
   log(numr) - log(denomr)
 end
 

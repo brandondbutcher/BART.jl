@@ -87,9 +87,7 @@ function onlyparents(branch::Branch, branches::Vector{Branch})
   return branches
 end
 
-function onlyparents(leaf::Leaf, branches::Vector{Branch})
-  nothing
-end
+onlyparents(leaf::Leaf, branches::Vector{Branch}) = nothing
 
 function depth(node::Node, tree::Tree)
   tree.root == node ? 0 : 1 + depth(parent(node, tree), tree)
