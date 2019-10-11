@@ -11,25 +11,25 @@ function StatsBase.predict(tree::Tree)
 end
 
 function StatsBase.predict(trees::Vector{Tree}, bm::BartModel)
-  yhat = zeros(bm.td.n)
+  fhat = zeros(bm.td.n)
   for tree in trees
-    yhat += treepredict(tree)
+    fhat += predict(tree)
   end
-  yhat
+  fhat
 end
 
 function StatsBase.predict(bs::BartState, bm::BartModel)
-  yhat = zeros(bm.td.n)
+  fhat = zeros(bm.td.n)
   for tree in bs.trees
-    yhat += predict(tree)
+    fhat += predict(tree)
   end
-  yhat
+  fhat
 end
 
-function StatsBase.predict(X::Matrix{Float64}, trees::Vector{Tree}, td::TrainData)
-  yhat = zeros(size(X)[1])
-  for tree in trees
-    yhat += leafprob(X, tree) * treemu(tree)
-  end
-  yhat .+ td.ybar
-end
+# function StatsBase.predict(X::Matrix{Float64}, trees::Vector{Tree}, td::TrainData)
+#   yhat = zeros(size(X)[1])
+#   for tree in trees
+#     yhat += leafprob(X, tree) * treemu(tree)
+#   end
+#   yhat .+ td.ybar
+# end

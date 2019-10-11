@@ -283,19 +283,29 @@ end
 
 function drawtrees!(bs::BartState, bm::BartModel)
   for tree in bs.trees
-    yhat_t = bs.yhat .- predict(tree)
-    rt = bm.td.y .- yhat_t
+    fhat_t = bs.fhat .- predict(tree)
+    rt = resp(bm.td.resp) .- fhat_t
     drawT!(tree, rt, bs, bm)
     drawλ!(tree, rt, bs, bm)
     drawμ!(tree, rt, bs, bm)
-    bs.yhat = yhat_t .+ predict(tree)
+    bs.fhat = fhat_t .+ predict(tree)
   end
-  bs.yhat = predict(bs, bm)
+  bs.fhat = predict(bs, bm)
+end
+
+function drawz!(bs::BartState, bm::BartModel)
+  for i in 1:bm.td.n
+    if bm.td.resp.y[i] == 1
+      bm.td.resp.z[i] = rand(Truncated(Normal(bs.fhat[i]), 0, Inf))
+    else
+      bm.td.resp.z[i] = rand(Truncated(Normal(bs.fhat[i]), -Inf, 0))
+    end
+  end
 end
 
 ## Gibbs step to update error variance
 function drawσ!(bs::BartState, bm::BartModel)
   a = 0.5 * (bm.hypers.ν + bm.td.n)
-  b = 0.5 * (bm.hypers.ν * bm.hypers.δ + sum((bm.td.y - bs.yhat).^2))
+  b = 0.5 * (bm.hypers.ν * bm.hypers.δ + sum((resp(bm.td.resp) - bs.fhat).^2))
   bs.σ = sqrt(rand(InverseGamma(a, b)))
 end
