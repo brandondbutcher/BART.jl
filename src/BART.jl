@@ -21,7 +21,6 @@ module BART
     TrainData
     Opts
     BartModel
-    Posterior
 
   export
     fit

@@ -272,19 +272,30 @@ end
 
 ## Gibbs step to update leaf parameters for a single Tree
 function drawμ!(tree::Tree, rt::Vector{Float64}, bs::BartState, bm::BartModel)
-  Omega = inv(transpose(tree.S) * tree.S / bs.σ^2 + I / bm.hypers.τ)
-  rhat = transpose(tree.S) * rt / bs.σ^2
-  newμ = rand(MvNormal(Omega * rhat, Symmetric(Omega)))
+  # Omega = inv(transpose(tree.S) * tree.S / bs.σ^2 + I / bm.hypers.τ)
+  # rhat = transpose(tree.S) * rt / bs.σ^2
+  # newμ = rand(MvNormal(Omega * rhat, Symmetric(Omega)))
+  newμ = rand(MvNormal(tree.ss.Ω * tree.ss.rhat, Symmetric(tree.ss.Ω)))
   leaves = leafnodes(tree)
   for l in 1:length(leaves)
     leaves[l].μ = newμ[l]
   end
 end
 
-function drawtrees!(bs::BartState, bm::BartModel)
+function drawz!(bs::BartState, bm::BartModel)
+  for i in 1:bm.td.n
+    if bm.td.y[i] == 1
+      bs.z[i] = rand(Truncated(Normal(bs.fhat[i]), 0, Inf))
+    else
+      bs.z[i] = rand(Truncated(Normal(bs.fhat[i]), -Inf, 0))
+    end
+  end
+end
+
+function drawtrees!(bs::RegBartState, bm::BartModel)
   for tree in bs.trees
     fhat_t = bs.fhat .- predict(tree)
-    rt = resp(bm.td.resp) .- fhat_t
+    rt = bm.td.y .- fhat_t
     drawT!(tree, rt, bs, bm)
     drawλ!(tree, rt, bs, bm)
     drawμ!(tree, rt, bs, bm)
@@ -293,19 +304,22 @@ function drawtrees!(bs::BartState, bm::BartModel)
   bs.fhat = predict(bs, bm)
 end
 
-function drawz!(bs::BartState, bm::BartModel)
-  for i in 1:bm.td.n
-    if bm.td.resp.y[i] == 1
-      bm.td.resp.z[i] = rand(Truncated(Normal(bs.fhat[i]), 0, Inf))
-    else
-      bm.td.resp.z[i] = rand(Truncated(Normal(bs.fhat[i]), -Inf, 0))
-    end
+function drawtrees!(bs::ProbitBartState, bm::BartModel)
+  drawz!(bs, bm)
+  for tree in bs.trees
+    fhat_t = bs.fhat .- predict(tree)
+    rt = bs.z .- fhat_t
+    drawT!(tree, rt, bs, bm)
+    drawλ!(tree, rt, bs, bm)
+    drawμ!(tree, rt, bs, bm)
+    bs.fhat = fhat_t .+ predict(tree)
   end
+  bs.fhat = predict(bs, bm)
 end
 
 ## Gibbs step to update error variance
-function drawσ!(bs::BartState, bm::BartModel)
+function drawσ!(bs::RegBartState, bm::BartModel)
   a = 0.5 * (bm.hypers.ν + bm.td.n)
-  b = 0.5 * (bm.hypers.ν * bm.hypers.δ + sum((resp(bm.td.resp) - bs.fhat).^2))
+  b = 0.5 * (bm.hypers.ν * bm.hypers.δ + sum((bm.td.y - bs.fhat).^2))
   bs.σ = sqrt(rand(InverseGamma(a, b)))
 end
