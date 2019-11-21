@@ -3,10 +3,11 @@
 ###############################################################################
 
 struct TrainData
-  n::Int64
-  p::Int64
+  n::Int
+  p::Int
   xmin::Matrix{Float64}
   xmax::Matrix{Float64}
+  dt::ZScoreTransform{Float64}
   X::Matrix{Float64}
   ybar::Float64
   y::AbstractVector
@@ -27,7 +28,7 @@ function TrainData(X::Matrix{Float64}, y::Vector{Float64})
   X = Matrix(transpose(X))
   xmin = minimum(X, dims = 1)
   xmax = maximum(X, dims = 1)
-  TrainData(n, p, xmin, xmax, X, ybar, y, σhat)
+  TrainData(n, p, xmin, xmax, dt, X, ybar, y, σhat)
 end
 
 function TrainData(X::Matrix{Float64}, y::Vector{Int})
@@ -39,7 +40,7 @@ function TrainData(X::Matrix{Float64}, y::Vector{Int})
   xmin = minimum(X, dims = 1)
   xmax = maximum(X, dims = 1)
   ybar = mean(y)
-  TrainData(n, p, xmin, xmax, X, ybar, y, 1.0)
+  TrainData(n, p, xmin, xmax, dt, X, ybar, y, 1.0)
 end
 
 
@@ -48,12 +49,13 @@ end
 ###############################################################################
 
 struct Opts
-  nburn::Int64
-  ndraw::Int64
-  nthin::Int64
+  nchains::Int
+  nburn::Int
+  ndraw::Int
+  nthin::Int
   S::Int64
-  function Opts(;nburn = 100, ndraw = 1000, nthin = 1)
-    new(nburn, ndraw, nthin, nburn + ndraw)
+  function Opts(;nchains = 4, nburn = 500, ndraw = 500, nthin = 1)
+    new(nchains, nburn, ndraw, nthin, nburn + ndraw)
   end
 end
 
@@ -106,52 +108,91 @@ end
 
 abstract type BartState end
 
+mutable struct SuffStats
+  Lt::Int
+  Ω::Matrix{Float64}
+  rhat::Vector{Float64}
+end
+
+function suffstats(rt::Vector{Float64}, S::Matrix{Float64}, bs::BartState, bm::BartModel)
+  Lt = size(S, 2)
+  Ω = inv(transpose(S) * S / bs.σ^2 + I / bm.hypers.τ)
+  rhat = transpose(S) * rt / bs.σ^2
+  SuffStats(Lt, Ω, rhat)
+end
+
+mutable struct BartTree
+  tree::Tree
+  S::Matrix{Float64}
+  ss::SuffStats
+end
+
+mutable struct BartEnsemble
+  trees::Vector{BartTree}
+end
+
 mutable struct RegBartState <: BartState
-  trees::Vector{Tree}
+  ensemble::BartEnsemble
   fhat::Vector{Float64}
   σ::Float64
 end
 
+function Base.convert(Node, x)
+  isa(x, DecisionTree.Leaf) ? Leaf(x.majority) :
+    Branch(x.featid, x.featval, convert(Node, x.left), convert(Node, x.right))
+end
+
 function RegBartState(bm::BartModel)
-  trees = Vector{Tree}(undef, bm.hypers.m)
-  μ = mean(bm.td.y) ./ bm.hypers.m
-  S = ones(bm.td.n, 1)
-  Ω = inv(transpose(S) * S / bm.td.σhat^2 + I / bm.hypers.τ)
-  rhat = transpose(S) * bm.td.y / bm.td.σhat^2
-  ss = SuffStats(1, Ω, rhat)
-  for t in 1:bm.hypers.m
-    trees[t] = Tree(Leaf(μ), bm.hypers.λmean, S, ss)
+  rf = DecisionTree.fit!(
+    DecisionTree.RandomForestRegressor(
+      n_trees = bm.hypers.m, max_depth = 5, min_purity_increase = 1, partial_sampling = 0.5),
+      bm.td.X, bm.td.y
+  )
+  trees = Tree.(convert.(Node, rf.ensemble.trees), bm.hypers.λmean)
+  S = [leafprob(bm.td.X, tree) for tree in trees]
+  fhats = reduce(hcat, [S[t] * getμ(trees[t]) for t in eachindex(trees)])
+  yhat = vec(sum(fhats, dims = 2))
+  σhat = sqrt(dot(bm.td.y - yhat, bm.td.y - yhat) / (bm.td.n - bm.td.p))
+  bt = Vector{BartTree}(undef, bm.hypers.m)
+  for t in eachindex(trees)
+    rt = bm.td.y - sum(fhats[:,eachindex(trees) .!= t], dims = 2)
+    Ω = inv(transpose(S[t]) * S[t] / σhat^2 + I / bm.hypers.τ)
+    rhat = vec(transpose(S[t]) * rt / σhat^2)
+    bt[t] = BartTree(trees[t], S[t], SuffStats(size(S[t], 2), Ω, rhat))
   end
-  RegBartState(trees, repeat([μ*bm.hypers.m], bm.td.n), bm.td.σhat)
+  RegBartState(BartEnsemble(bt), yhat, σhat)
 end
 
 mutable struct ProbitBartState <: BartState
-  trees::Vector{Tree}
+  ensemble::BartEnsemble
   fhat::Vector{Float64}
   z::Vector{Float64}
   σ::Float64
 end
 
 function ProbitBartState(bm::BartModel)
-  trees = Vector{Tree}(undef, bm.hypers.m)
-  z = map(y -> y == 1 ? max(randn(), 0) : min(randn(), 0), bm.td.y)
-  μ = mean(z) ./ bm.hypers.m
-  S = ones(bm.td.n, 1)
-  Ω = inv(transpose(S) * S / bm.td.σhat^2 + I / bm.hypers.τ)
-  rhat = transpose(S) * (bm.hypers.m - 1) * repeat([μ], bm.td.n) / bm.td.σhat^2
-  ss = SuffStats(1, Ω, rhat)
-  for t in 1:bm.hypers.m
-    trees[t] = Tree(Leaf(μ), bm.hypers.λmean, S, ss)
+  z = map(y -> y == 1 ?
+    rand(Truncated(Normal(), 0, Inf)) :
+    rand(Truncated(Normal(), -Inf, 0)),
+    bm.td.y
+  )
+  rf = DecisionTree.fit!(
+    DecisionTree.RandomForestRegressor(
+      n_trees = bm.hypers.m, max_depth = 5, min_purity_increase = 1, partial_sampling = 0.5),
+      bm.td.X, z
+  )
+  trees = Tree.(convert.(Node, rf.ensemble.trees), bm.hypers.λmean)
+  S = [leafprob(bm.td.X, tree) for tree in trees]
+  fhats = reduce(hcat, [S[t] * getμ(trees[t]) for t in eachindex(trees)])
+  yhat = vec(sum(fhats, dims = 2))
+  bt = BartEnsemble(Vector{BartTree}(undef, bm.hypers.m))
+  for t in eachindex(trees)
+    rt = z - sum(fhats[:,eachindex(trees) .!= t], dims = 2)
+    Ω = inv(transpose(S[t]) * S[t] + I / bm.hypers.τ)
+    rhat = vec(transpose(S[t]) * rt)
+    bt.trees[t] = BartTree(trees[t], S[t], SuffStats(size(S[t], 2), Ω, rhat))
   end
-  ProbitBartState(trees, repeat([μ*bm.hypers.m], bm.td.n), z, 1.0)
-end
-
-function suffstats(rt, S, bs, bm)
-  Lt = size(S, 2)
-  Ω = inv(transpose(S) * S / bs.σ^2 + I / bm.hypers.τ)
-  rhat = transpose(S) * rt / bs.σ^2
-  ss = SuffStats(Lt, Ω, rhat)
-  SuffStats(Lt, Ω, rhat)
+  ProbitBartState(bt, yhat, z, 1)
 end
 
 
@@ -159,26 +200,38 @@ end
 ##### Posterior draws from BART model
 ###############################################################################
 
-abstract type BartPosterior end
+# abstract type BartPosterior end
 
-struct RegBartPosterior <: BartPosterior
-  fdraws::Matrix{Float64}
+struct BartPosterior
+  mdraws::Matrix{Float64}
+  lctp::Vector{Float64}
   σdraws::Vector{Float64}
-  function RegBartPosterior(bm::BartModel)
+  treedraws::Vector{Vector{Tree}}
+  function BartPosterior(bm::BartModel)
     new(
       Matrix{Float64}(undef, bm.td.n, bm.opts.ndraw),
-      Vector{Float64}(undef, bm.opts.ndraw)
+      Vector{Float64}(undef, bm.opts.ndraw),
+      Vector{Float64}(undef, bm.opts.ndraw),
+      Vector{Vector{Tree}}(undef, bm.opts.ndraw)
     )
   end
 end
 
-struct ProbitBartPosterior <: BartPosterior
-  fdraws::Matrix{Float64}
-  zdraws::Matrix{Float64}
-  function ProbitBartPosterior(bm::BartModel)
-    new(
-      Matrix{Float64}(undef, bm.td.n, bm.opts.ndraw),
-      Matrix{Float64}(undef, bm.td.n, bm.opts.ndraw)
-    )
-  end
+# struct ProbitBartPosterior <: BartPosterior
+#   pdraws::Matrix{Float64}
+#   lctp::Vector{Float64}
+#   treedraws::Vector{Vector{Tree}}
+#   function ProbitBartPosterior(bm::BartModel)
+#     new(
+#       Matrix{Float64}(undef, bm.td.n, bm.opts.ndraw),
+#       Vector{Float64}(undef, bm.opts.ndraw),
+#       Vector{Vector{Tree}}(undef, bm.opts.ndraw)
+#     )
+#   end
+# end
+
+struct BartChain
+  mdraws::Array{Float64}
+  treedraws::Array{Vector{Tree}}
+  monitor::Chains
 end

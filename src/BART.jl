@@ -1,8 +1,12 @@
 module BART
 
+  using Distributed
   using Distributions
   using LinearAlgebra
   using StatsBase
+  using MCMCChains
+
+  import DecisionTree
 
   include("trees.jl")
   include("models.jl")
@@ -11,18 +15,13 @@ module BART
   include("fit.jl")
 
   export
-    Node
-    Branch
-    Leaf
-    Tree
-
-  export
-    Hypers
+    BartModel,
+    Hypers,
+    Opts,
     TrainData
-    Opts
-    BartModel
 
   export
-    fit
+    fit,
+    predict
 
 end

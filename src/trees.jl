@@ -15,17 +15,9 @@ mutable struct Leaf <: Node
   μ::Float64
 end
 
-mutable struct SuffStats
-  Lt::Int
-  Ω::Matrix{Float64}
-  rhat::Vector{Float64}
-end
-
 mutable struct Tree
   root::Node
   λ::Float64
-  S::Matrix{Float64}
-  ss::SuffStats
 end
 
 
@@ -33,38 +25,25 @@ end
 ##### Tree utility functions
 ###############################################################################
 
-function leafnodes(tree::Tree)
-  leaves = Leaf[]
-  if isa(tree.root, Leaf)
-    push!(leaves, tree.root)
-  else
-    leafnodes(tree.root.left, leaves)
-    leafnodes(tree.root.right, leaves)
-  end
-end
-
-function leafnodes(node::Node, leaves::Vector{Leaf})
-  if isa(node, Leaf)
-    push!(leaves, node)
-  else
-    leafnodes(node.left, leaves)
-    leafnodes(node.right, leaves)
-  end
+function leafnodes(node::Node)
+  isa(node, Leaf) ? [node] :
+    reduce(vcat, [leafnodes(node.left), leafnodes(node.right)])
 end
 
 function Base.parent(node::Node, tree::Tree)
   parent(node, tree.root)
 end
 
-function Base.parent(node::Node, cnode::Branch)
-  if (cnode.left == node) || (cnode.right == node)
-    return cnode
+function Base.parent(node::Node, child_node::Branch)
+  if (child_node.left == node) || (child_node.right == node)
+    return child_node
   else
-    parent(node, cnode.left) == nothing ? parent(node, cnode.right) : parent(node, cnode.left)
+    isa(parent(node, child_node.left), Nothing) ?
+      parent(node, child_node.right) : parent(node, child_node.left)
   end
 end
 
-function Base.parent(node::Node, cnode::Leaf)
+function Base.parent(node::Node, child_node::Leaf)
   nothing
 end
 
