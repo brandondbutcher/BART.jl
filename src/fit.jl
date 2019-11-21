@@ -31,7 +31,7 @@ function StatsBase.fit(BartModel, X::Matrix{Float64}, y::Vector{Float64}, opts =
   BartChain(
     reshape(reduce(hcat, [chain.mdraws for chain in post]), bm.td.n, bm.opts.ndraw, bm.opts.nchains),
     reshape(reduce(vcat, [chain.treedraws for chain in post]), bm.opts.ndraw, 1, bm.opts.nchains),
-    Chains(monitor)
+    Chains(monitor, ["lctp", "sigma"])
   )
 end
 
@@ -65,6 +65,6 @@ function StatsBase.fit(BartModel, X::Matrix{Float64}, y::Vector{Int}, opts = Opt
   BartChain(
     reshape(reduce(hcat, [chain.mdraws for chain in post]), bm.td.n, bm.opts.ndraw, bm.opts.nchains),
     reshape(reduce(vcat, [chain.treedraws for chain in post]), bm.opts.ndraw, 1, bm.opts.nchains),
-    Chains(monitor)
+    Chains(monitor, ["lctp"])
   )
 end
