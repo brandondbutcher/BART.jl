@@ -73,15 +73,16 @@ struct Hypers
   α::Float64
   β::Float64
   λmean::Float64
+  λfix::Bool
   τ::Float64
-  function Hypers(td::TrainData; m = 25, k = 2, ν = 3.0, q = 0.9, α = 0.95, β = 2.0, λmean = 0.1)
+  function Hypers(td::TrainData; m = 25, k = 2, ν = 3.0, q = 0.9, α = 0.95, β = 2.0, λmean = 0.1, λfix = false)
     δ = 1 / quantile(InverseGamma(ν / 2, ν / (2 * td.σhat^2)), q)
     if isa(td.y, Vector{Int})
       τ = (3.0 / (k*sqrt(m)))^2
     else
       τ = ((maximum(td.y) - minimum(td.y)) / (2*k*sqrt(m)))^2
     end
-    new(m, k, ν, δ, q, α, β, λmean, τ)
+    new(m, k, ν, δ, q, α, β, λmean, λfix, τ)
   end
 end
 
@@ -204,13 +205,11 @@ end
 
 struct BartPosterior
   mdraws::Matrix{Float64}
-  lctp::Vector{Float64}
   σdraws::Vector{Float64}
   treedraws::Vector{Vector{Tree}}
   function BartPosterior(bm::BartModel)
     new(
       Matrix{Float64}(undef, bm.td.n, bm.opts.ndraw),
-      Vector{Float64}(undef, bm.opts.ndraw),
       Vector{Float64}(undef, bm.opts.ndraw),
       Vector{Vector{Tree}}(undef, bm.opts.ndraw)
     )
@@ -230,7 +229,14 @@ end
 #   end
 # end
 
+struct BartInfo
+  dt::ZScoreTransform{Float64}
+  ybar::Float64
+end
+
+
 struct BartChain
+  info::BartInfo
   mdraws::Array{Float64}
   treedraws::Array{Vector{Tree}}
   monitor::Chains

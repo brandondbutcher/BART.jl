@@ -294,11 +294,10 @@ function drawtrees!(bs::RegBartState, bm::BartModel)
     fhat_t = bs.fhat .- predict(bt)
     rt = bm.td.y .- fhat_t
     drawT!(bt, rt, bs, bm)
-    drawλ!(bt, rt, bs, bm)
+    bm.hypers.λfix ? nothing : drawλ!(bt, rt, bs, bm)
     drawμ!(bt, rt, bs, bm)
     bs.fhat = fhat_t .+ predict(bt)
   end
-  bs.fhat = predict(bs, bm)
 end
 
 function drawtrees!(bs::ProbitBartState, bm::BartModel)
@@ -311,7 +310,6 @@ function drawtrees!(bs::ProbitBartState, bm::BartModel)
     drawμ!(bt, rt, bs, bm)
     bs.fhat = fhat_t .+ predict(bt)
   end
-  bs.fhat = predict(bs, bm)
 end
 
 ## Gibbs step to update error variance
@@ -322,11 +320,13 @@ function drawσ!(bs::RegBartState, bm::BartModel)
 end
 
 ## Log conditional tree posterior
-function lctp(bs::BartState, bm::BartModel)
-  S = reduce(hcat, [leafprob(bm.td.X, bt.tree) for bt in bs.ensemble.trees])
-  Σ = Symmetric(bs.σ^2*I + bm.hypers.τ*S*S')
+function jmp(bm, c::Array)
+  trees, σ = c
+  S = reduce(hcat, [BART.leafprob(bm.td.X, tree) for tree in trees])
+  Σ = Symmetric(σ^2*I + bm.hypers.τ*S*S')
   mll = loglikelihood(MvNormal(zeros(bm.td.n), Σ), reshape(bm.td.y, bm.td.n, 1))
-  ltp = sum([log_tree_prior(bt.tree, bm) for bt in bs.ensemble.trees])
-  llp = sum([logpdf(Exponential(bm.hypers.λmean), bt.tree.λ) for bt in bs.ensemble.trees])
-  -2*(mll + ltp + llp)
+  ltp = sum([BART.log_tree_prior(tree, bm) for tree in trees])
+  llp = sum([logpdf(Exponential(bm.hypers.λmean), tree.λ) for tree in trees])
+  lσp = logpdf(InverseGamma(bm.hypers.ν/2, bm.hypers.ν*bm.hypers.δ/2), σ^2)
+  -2*(mll + ltp + llp + lσp)
 end
