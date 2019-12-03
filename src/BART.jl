@@ -21,6 +21,7 @@ module BART
     TrainData
 
   export
+    depth,
     fit,
     predict
 

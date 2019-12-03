@@ -72,6 +72,10 @@ function depth(node::Node, tree::Tree)
   tree.root == node ? 0 : 1 + depth(parent(node, tree), tree)
 end
 
+function depth(tree)
+  maximum([depth(leaf, tree) for leaf in leafnodes(tree.root)])
+end
+
 function isleft(node::Node, tree::Tree)
   parentnode = parent(node, tree)
   parentnode.left == node ? true : false

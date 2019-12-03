@@ -30,7 +30,7 @@ function StatsBase.predict(bc::BartChain, X::Matrix{Float64})
   X = StatsBase.transform(bc.info.dt, transpose(X))
   X = Matrix(transpose(X))
   treedraws = reshape(bc.treedraws, size(bc.treedraws, 1)*size(bc.treedraws, 3))
-  reduce(hcat, pmap(t -> predict(t, X), treedraws)) .+ posterior1.info.ybar
+  reduce(hcat, pmap(t -> predict(t, X), treedraws)) .+ bc.info.ybar
 end
 
 # function StatsBase.predict(posterior::Vector{RegBartPosterior}, X::Matrix{Float64})

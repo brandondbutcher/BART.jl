@@ -75,14 +75,16 @@ struct Hypers
   λmean::Float64
   λfix::Bool
   τ::Float64
-  function Hypers(td::TrainData; m = 25, k = 2, ν = 3.0, q = 0.9, α = 0.95, β = 2.0, λmean = 0.1, λfix = false)
+  init_depth::Vector
+  function Hypers(td::TrainData; m = 25, k = 2, ν = 3.0, q = 0.9, α = 0.95,
+    β = 2.0, λmean = 0.1, λfix = false, init_depth = [0,1,2,3])
     δ = 1 / quantile(InverseGamma(ν / 2, ν / (2 * td.σhat^2)), q)
     if isa(td.y, Vector{Int})
       τ = (3.0 / (k*sqrt(m)))^2
     else
       τ = ((maximum(td.y) - minimum(td.y)) / (2*k*sqrt(m)))^2
     end
-    new(m, k, ν, δ, q, α, β, λmean, λfix, τ)
+    new(m, k, ν, δ, q, α, β, λmean, λfix, τ, init_depth)
   end
 end
 
@@ -144,24 +146,28 @@ function Base.convert(Node, x)
 end
 
 function RegBartState(bm::BartModel)
-  rf = DecisionTree.fit!(
-    DecisionTree.RandomForestRegressor(
-      n_trees = bm.hypers.m, max_depth = 5, min_purity_increase = 1, partial_sampling = 0.5),
-      bm.td.X, bm.td.y
-  )
-  trees = Tree.(convert.(Node, rf.ensemble.trees), bm.hypers.λmean)
-  S = [leafprob(bm.td.X, tree) for tree in trees]
-  fhats = reduce(hcat, [S[t] * getμ(trees[t]) for t in eachindex(trees)])
-  yhat = vec(sum(fhats, dims = 2))
-  σhat = sqrt(dot(bm.td.y - yhat, bm.td.y - yhat) / (bm.td.n - bm.td.p))
-  bt = Vector{BartTree}(undef, bm.hypers.m)
-  for t in eachindex(trees)
-    rt = bm.td.y - sum(fhats[:,eachindex(trees) .!= t], dims = 2)
-    Ω = inv(transpose(S[t]) * S[t] / σhat^2 + I / bm.hypers.τ)
-    rhat = vec(transpose(S[t]) * rt / σhat^2)
-    bt[t] = BartTree(trees[t], S[t], SuffStats(size(S[t], 2), Ω, rhat))
+  states = RegBartState[]
+  for init_depth in bm.hypers.init_depth
+    rf = DecisionTree.fit!(
+      DecisionTree.RandomForestRegressor(
+        n_trees = bm.hypers.m, max_depth = init_depth, partial_sampling = 0.5),
+        bm.td.X, bm.td.y
+    )
+    trees = Tree.(convert.(Node, rf.ensemble.trees), bm.hypers.λmean)
+    S = [leafprob(bm.td.X, tree) for tree in trees]
+    fhats = reduce(hcat, [S[t] * getμ(trees[t]) for t in eachindex(trees)])
+    yhat = vec(sum(fhats, dims = 2))
+    σhat = sqrt(dot(bm.td.y - yhat, bm.td.y - yhat) / (bm.td.n - bm.td.p))
+    bt = Vector{BartTree}(undef, bm.hypers.m)
+    for t in eachindex(trees)
+      rt = bm.td.y - sum(fhats[:,eachindex(trees) .!= t], dims = 2)
+      Ω = inv(transpose(S[t]) * S[t] / σhat^2 + I / bm.hypers.τ)
+      rhat = vec(transpose(S[t]) * rt / σhat^2)
+      bt[t] = BartTree(trees[t], S[t], SuffStats(size(S[t], 2), Ω, rhat))
+    end
+    push!(states, RegBartState(BartEnsemble(bt), yhat, σhat))
   end
-  RegBartState(BartEnsemble(bt), yhat, σhat)
+  states
 end
 
 mutable struct ProbitBartState <: BartState
@@ -172,28 +178,32 @@ mutable struct ProbitBartState <: BartState
 end
 
 function ProbitBartState(bm::BartModel)
-  z = map(y -> y == 1 ?
-    rand(Truncated(Normal(), 0, Inf)) :
-    rand(Truncated(Normal(), -Inf, 0)),
-    bm.td.y
-  )
-  rf = DecisionTree.fit!(
-    DecisionTree.RandomForestRegressor(
-      n_trees = bm.hypers.m, max_depth = 5, min_purity_increase = 1, partial_sampling = 0.5),
-      bm.td.X, z
-  )
-  trees = Tree.(convert.(Node, rf.ensemble.trees), bm.hypers.λmean)
-  S = [leafprob(bm.td.X, tree) for tree in trees]
-  fhats = reduce(hcat, [S[t] * getμ(trees[t]) for t in eachindex(trees)])
-  yhat = vec(sum(fhats, dims = 2))
-  bt = BartEnsemble(Vector{BartTree}(undef, bm.hypers.m))
-  for t in eachindex(trees)
-    rt = z - sum(fhats[:,eachindex(trees) .!= t], dims = 2)
-    Ω = inv(transpose(S[t]) * S[t] + I / bm.hypers.τ)
-    rhat = vec(transpose(S[t]) * rt)
-    bt.trees[t] = BartTree(trees[t], S[t], SuffStats(size(S[t], 2), Ω, rhat))
+  states = []
+  for init_depth in bm.hypers.init_depth
+    z = map(y -> y == 1 ?
+      rand(Truncated(Normal(), 0, Inf)) :
+      rand(Truncated(Normal(), -Inf, 0)),
+      bm.td.y
+    )
+    rf = DecisionTree.fit!(
+      DecisionTree.RandomForestRegressor(
+        n_trees = bm.hypers.m, max_depth = init_depth, partial_sampling = 0.5),
+        bm.td.X, z
+    )
+    trees = Tree.(convert.(Node, rf.ensemble.trees), bm.hypers.λmean)
+    S = [leafprob(bm.td.X, tree) for tree in trees]
+    fhats = reduce(hcat, [S[t] * getμ(trees[t]) for t in eachindex(trees)])
+    yhat = vec(sum(fhats, dims = 2))
+    bt = BartEnsemble(Vector{BartTree}(undef, bm.hypers.m))
+    for t in eachindex(trees)
+      rt = z - sum(fhats[:,eachindex(trees) .!= t], dims = 2)
+      Ω = inv(transpose(S[t]) * S[t] + I / bm.hypers.τ)
+      rhat = vec(transpose(S[t]) * rt)
+      bt.trees[t] = BartTree(trees[t], S[t], SuffStats(size(S[t], 2), Ω, rhat))
+    end
+    push!(states, ProbitBartState(bt, yhat, z, 1))
   end
-  ProbitBartState(bt, yhat, z, 1)
+  states
 end
 
 
