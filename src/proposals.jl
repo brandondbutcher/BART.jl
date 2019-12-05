@@ -306,7 +306,7 @@ function drawtrees!(bs::ProbitBartState, bm::BartModel)
     fhat_t = bs.fhat .- predict(bt)
     rt = bs.z .- fhat_t
     drawT!(bt, rt, bs, bm)
-    drawλ!(bt, rt, bs, bm)
+    bm.hypers.λfix ? nothing : drawλ!(bt, rt, bs, bm)
     drawμ!(bt, rt, bs, bm)
     bs.fhat = fhat_t .+ predict(bt)
   end
