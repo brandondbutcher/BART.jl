@@ -77,7 +77,7 @@ struct Hypers
   τ::Float64
   init_depth::Vector
   function Hypers(td::TrainData; m = 25, k = 2, ν = 3.0, q = 0.9, α = 0.95,
-    β = 2.0, λmean = 0.1, λfix = false, init_depth = [0,1,2,3])
+    β = 2.0, λmean = 0.1, λfix = false, init_depth = 3*ones(4))
     δ = 1 / quantile(InverseGamma(ν / 2, ν / (2 * td.σhat^2)), q)
     if isa(td.y, Vector{Int})
       τ = (3.0 / (k*sqrt(m)))^2
@@ -150,7 +150,7 @@ function RegBartState(bm::BartModel)
   for init_depth in bm.hypers.init_depth
     rf = DecisionTree.fit!(
       DecisionTree.RandomForestRegressor(
-        n_trees = bm.hypers.m, max_depth = init_depth, partial_sampling = 0.5),
+        n_trees = bm.hypers.m, max_depth = init_depth, min_purity_increase = 1, partial_sampling = 0.5),
         bm.td.X, bm.td.y
     )
     trees = Tree.(convert.(Node, rf.ensemble.trees), bm.hypers.λmean)
@@ -244,10 +244,10 @@ struct BartInfo
   ybar::Float64
 end
 
-
 struct BartChain
   info::BartInfo
   mdraws::Array{Float64}
   treedraws::Array{Vector{Tree}}
-  monitor::Chains
+  σdraws::Array{Float64}
+  # monitor::Chains
 end
