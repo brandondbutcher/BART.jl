@@ -5,7 +5,7 @@
 abstract type Node end
 
 mutable struct Branch <: Node
-  var::Int64
+  var::Int
   cut::Float64
   left::Node
   right::Node
