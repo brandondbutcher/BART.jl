@@ -169,7 +169,7 @@ function birthproposal!(bt::BartTree, rt::Vector{Float64}, bs::BartState, bm::Ba
   leaves = leafnodes(bt.tree.root)
   index = rand(1:length(leaves))
   leaf = leaves[index]
-  newvar = rand(1:bm.td.p)
+  newvar = sample(1:bm.td.p, weights(bs.s))
   newcut = drawcut(leaf, newvar, bt.tree, bm)
   branch = Branch(newvar, newcut, Leaf(0.0), Leaf(0.0))
   goesleft = bt.S[:,index] .* probleft(bm.td.X, branch, bt.tree)
@@ -279,6 +279,7 @@ function drawμ!(bt::BartTree, rt::Vector{Float64}, bs::BartState, bm::BartModel
   end
 end
 
+## Draw latent from truncated normal
 function drawz!(bs::BartState, bm::BartModel)
   for i in 1:bm.td.n
     if bm.td.y[i] == 1
@@ -319,14 +320,55 @@ function drawσ!(bs::RegBartState, bm::BartModel)
   bs.σ = sqrt(rand(InverseGamma(a, b)))
 end
 
-## Log conditional tree posterior
-function jmp(bm, c::Array)
-  trees, σ = c
-  S = reduce(hcat, [BART.leafprob(bm.td.X, tree) for tree in trees])
+## Draw sparsity per Linero & Yang (2018)
+varcount!(leaf::Leaf, counts::Vector) = nothing
+
+function varcount!(branch::Branch, counts::Vector)
+  counts[branch.var] += 1
+  varcount!(branch.left, counts)
+  varcount!(branch.right, counts)
+end
+
+function varcount(tree::Tree, bm::BartModel)
+  counts = zeros(bm.td.p)
+  varcount!(tree.root, counts)
+  counts
+end
+
+function varcounts(trees::Vector{BartTree}, bm::BartModel)
+  vec(sum(reduce(hcat, [varcount(bt.tree, bm) for bt in trees]), dims = 2))
+end
+
+function draws!(bs::BartState, bm::BartModel)
+  counts = varcounts(bs.ensemble.trees, bm)
+  bs.s = rand(Dirichlet(0.5 / bm.td.p .+ counts))
+end
+
+## Log tree posterior: continuous respose
+function log_tree_post(c::Array)
+  bm, trees, σ, y = c
+  S = reduce(hcat, [leafprob(bm.td.X, tree) for tree in trees])
   Σ = Symmetric(σ^2*I + bm.hypers.τ*S*S')
-  mll = loglikelihood(MvNormal(zeros(bm.td.n), Σ), reshape(bm.td.y, bm.td.n, 1))
-  ltp = sum([BART.log_tree_prior(tree, bm) for tree in trees])
+  mll = loglikelihood(MvNormal(zeros(bm.td.n), Σ), reshape(y, bm.td.n, 1))
+  ltp = sum([log_tree_prior(tree, bm) for tree in trees])
   llp = sum([logpdf(Exponential(bm.hypers.λmean), tree.λ) for tree in trees])
   lσp = logpdf(InverseGamma(bm.hypers.ν/2, bm.hypers.ν*bm.hypers.δ/2), σ^2)
   -2*(mll + ltp + llp + lσp)
+end
+
+function log_tree_post(bc::RegBartChain)
+  S = size(bc.treedraws, 1)*size(bc.treedraws, 3)
+  treedraws = reshape(bc.treedraws, S)
+  σdraws = reshape(bc.σdraws, S)
+  c = [[bc.bm, treedraws[l], σdraws[l], bc.bm.td.y] for l in 1:S]
+  pmap(log_tree_post, c)
+end
+
+## Log tree posterior: binary response
+function log_tree_post(bc::ProbitBartChain)
+  S = size(bc.treedraws, 1)*size(bc.treedraws, 3)
+  treedraws = reshape(bc.treedraws, S)
+  zdraws = reshape(bc.zdraws, bc.bm.td.n, S)
+  c = [[bc.bm, treedraws[l], 1.0, zdraws[:,l]] for l in 1:S]
+  pmap(log_tree_post, c)
 end

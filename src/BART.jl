@@ -23,6 +23,7 @@ module BART
   export
     depth,
     fit,
+    log_tree_post,
     predict
 
 end

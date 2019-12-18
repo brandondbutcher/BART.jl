@@ -26,16 +26,16 @@ function StatsBase.predict(trees::Vector{Tree}, X::Matrix{Float64})
   yhat
 end
 
-function StatsBase.predict(bc::BartChain, X::Matrix{Float64})
-  X = StatsBase.transform(bc.info.dt, transpose(X))
+function StatsBase.predict(bc::RegBartChain, X::Matrix{Float64})
+  X = StatsBase.transform(bc.bm.td.dt, transpose(X))
   X = Matrix(transpose(X))
   treedraws = reshape(bc.treedraws, size(bc.treedraws, 1)*size(bc.treedraws, 3))
   reduce(hcat, pmap(t -> predict(t, X), treedraws)) .+ bc.info.ybar
 end
 
-# function StatsBase.predict(posterior::Vector{RegBartPosterior}, X::Matrix{Float64})
-#   X = StatsBase.transform(posterior[1].dt, transpose(X))
-#   X = Matrix(transpose(X))
-#   trees = reduce(vcat, [chain.treedraws for chain in posterior])
-#   reduce(hcat, pmap(trees -> predict(trees, X), trees)) .+ posterior[1].ybar
-# end
+function StatsBase.predict(bc::ProbitBartChain, X::Matrix{Float64})
+  X = StatsBase.transform(bc.bm.td.dt, transpose(X))
+  X = Matrix(transpose(X))
+  treedraws = reshape(bc.treedraws, size(bc.treedraws, 1)*size(bc.treedraws, 3))
+  reduce(hcat, pmap(t -> cdf.(Normal(), predict(t, X)), treedraws))
+end
