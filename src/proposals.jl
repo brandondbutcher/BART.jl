@@ -315,8 +315,10 @@ end
 
 ## Gibbs step to update error variance
 function drawσ!(bs::RegBartState, bm::BartModel)
+  # a = 0.5 * (bm.hypers.ν + bm.td.n)
   a = 0.5 * (bm.hypers.ν + bm.td.n)
-  b = 0.5 * (bm.hypers.ν * bm.hypers.δ + sum((bm.td.y - bs.fhat).^2))
+  # b = 0.5 * (bm.hypers.ν * bm.hypers.δ + sum((bm.td.y - bs.fhat).^2))
+  b = 0.5 * (sum((bm.td.y - bs.fhat).^2))
   bs.σ = sqrt(rand(InverseGamma(a, b)))
 end
 

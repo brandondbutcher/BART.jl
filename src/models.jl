@@ -102,11 +102,12 @@ struct BartModel
   hypers::Hypers
   opts::Opts
   td::TrainData
-  function BartModel(X::Matrix{Float64}, y::AbstractVector, opts::Opts; hyperargs...)
-    td = TrainData(X, y)
-    hypers = Hypers(td; hyperargs...)
-    new(hypers, opts, td)
-  end
+end
+
+function BartModel(X::Matrix{Float64}, y::AbstractVector, opts::Opts; hyperargs...)
+  td = TrainData(X, y)
+  hypers = Hypers(td; hyperargs...)
+  BartModel(hypers, opts, td)
 end
 
 
@@ -191,9 +192,9 @@ end
 function ProbitBartState(bm::BartModel)
   states = []
   z = map(y -> y == 1 ?
-  rand(Truncated(Normal(), 0, Inf)) :
-  rand(Truncated(Normal(), -Inf, 0)),
-  bm.td.y
+    rand(Truncated(Normal(), 0, Inf)) :
+    rand(Truncated(Normal(), -Inf, 0)),
+    bm.td.y
   )
   for c in 1:bm.opts.nchains
     if bm.hypers.init_leaf

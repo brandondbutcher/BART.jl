@@ -24,6 +24,7 @@ module BART
     depth,
     fit,
     log_tree_post,
-    predict
+    predict,
+    update
 
 end
