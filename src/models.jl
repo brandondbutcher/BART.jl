@@ -74,12 +74,14 @@ struct Hypers
   β::Float64
   λmean::Float64
   λfix::Bool
+  sigma_improper::Bool
   τ::Float64
   init_leaf::Bool
   init_depth::Vector
   sparse::Bool
   function Hypers(td::TrainData; m = 50, k = 2,
     ν = 3.0, q = 0.9, α = 0.95, β = 2.0,
+    sigma_improper = false,
     λmean = 0.1, λfix = false,
     init_leaf = true, init_depth = ones(4),
     sparse = false)
@@ -89,7 +91,7 @@ struct Hypers
     else
       τ = ((maximum(td.y) - minimum(td.y)) / (2*k*sqrt(m)))^2
     end
-    new(m, k, ν, δ, q, α, β, λmean, λfix, τ, init_leaf, init_depth, sparse)
+    new(m, k, ν, δ, q, α, β, λmean, λfix, sigma_improper, τ, init_leaf, init_depth, sparse)
   end
 end
 
@@ -260,6 +262,7 @@ abstract type BartChain end
 
 struct RegBartChain <: BartChain
   bm::BartModel
+  init_trees
   mdraws::Array{Float64}
   treedraws::Array{Vector{Tree}}
   σdraws::Array{Float64}

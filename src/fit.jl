@@ -23,10 +23,12 @@ end
 function StatsBase.fit(BartModel, X::Matrix{Float64}, y::Vector{Float64}, opts = Opts(); hyperags...)
   bm = BartModel(X, y, opts; hyperags...)
   states = RegBartState(bm)
+  init_trees = map(state -> Tree[bt.tree for bt in state.ensemble.trees], states)
   post = pmap(bs -> sample(bs, bm), states)
   println("Processing chains...")
   RegBartChain(
     bm,
+    init_trees,
     reshape(reduce(hcat, [chain.mdraws for chain in post]), bm.td.n, bm.opts.ndraw, bm.opts.nchains),
     reshape(reduce(vcat, [chain.treedraws for chain in post]), bm.opts.ndraw, 1, bm.opts.nchains),
     reshape(reduce(vcat, [chain.σdraws for chain in post]), bm.opts.ndraw, 1, bm.opts.nchains)
