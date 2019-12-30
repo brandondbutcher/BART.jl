@@ -59,6 +59,7 @@ function update(post::RegBartChain, ndraw::Int)
   newdraws = pmap(bs -> sample(bs, bm), states)
   RegBartChain(
     BartModel(bm.hypers, Opts(ndraw = ndraw + post.bm.opts.ndraw, nburn = post.bm.opts.nburn), bm.td),
+    post.init_trees,
     hcat(post.mdraws,
       reshape(reduce(hcat, [chain.mdraws for chain in newdraws]), bm.td.n, bm.opts.ndraw, bm.opts.nchains)),
     vcat(post.treedraws,
