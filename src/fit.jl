@@ -94,10 +94,12 @@ end
 function StatsBase.fit(BartModel, X::Matrix{Float64}, y::Vector{Int}, opts = Opts(); hyperags...)
   bm = BartModel(X, y, opts; hyperags...)
   states = ProbitBartState(bm)
+  init_trees = map(state -> Tree[bt.tree for bt in state.ensemble.trees], states)
   post = pmap(bs -> sample(bs, bm), states)
   println("Processing chains...")
   ProbitBartChain(
     bm,
+    init_trees,
     reshape(reduce(hcat, [chain.mdraws for chain in post]), bm.td.n, bm.opts.ndraw, bm.opts.nchains),
     reshape(reduce(hcat, [chain.zdraws for chain in post]), bm.td.n, bm.opts.ndraw, bm.opts.nchains),
     reshape(reduce(vcat, [chain.treedraws for chain in post]), bm.opts.ndraw, 1, bm.opts.nchains)
@@ -131,6 +133,7 @@ function update(post::ProbitBartChain, ndraw::Int)
   newdraws = pmap(bs -> sample(bs, bm), states)
   ProbitBartChain(
     BartModel(bm.hypers, Opts(ndraw = ndraw + post.bm.opts.ndraw, nburn = post.bm.opts.nburn), bm.td),
+    post.init_trees,
     hcat(post.mdraws,
       reshape(reduce(hcat, [chain.mdraws for chain in newdraws]), bm.td.n, bm.opts.ndraw, bm.opts.nchains)),
     hcat(post.zdraws,
