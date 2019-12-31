@@ -79,19 +79,23 @@ struct Hypers
   init_leaf::Bool
   init_depth::Vector
   sparse::Bool
+  group_idx::Vector{Int}
   function Hypers(td::TrainData; m = 50, k = 2,
     ν = 3.0, q = 0.9, α = 0.95, β = 2.0,
     sigma_improper = false,
     λmean = 0.1, λfix = false,
     init_leaf = true, init_depth = ones(4),
-    sparse = false)
+    sparse = false,
+    group_idx = nothing)
     δ = 1 / quantile(InverseGamma(ν / 2, ν / (2 * td.σhat^2)), q)
     if isa(td.y, Vector{Int})
       τ = (3.0 / (k*sqrt(m)))^2
     else
       τ = ((maximum(td.y) - minimum(td.y)) / (2*k*sqrt(m)))^2
     end
-    new(m, k, ν, δ, q, α, β, λmean, λfix, sigma_improper, τ, init_leaf, init_depth, sparse)
+    group_idx = isa(group_idx, Nothing) ? collect(1:td.p) : group_idx
+    new(m, k, ν, δ, q, α, β, λmean, λfix, sigma_improper, τ,
+      init_leaf, init_depth, sparse, group_idx)
   end
 end
 
