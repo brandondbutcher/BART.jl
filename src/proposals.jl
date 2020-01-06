@@ -283,9 +283,9 @@ end
 function drawz!(bs::BartState, bm::BartModel)
   for i in 1:bm.td.n
     if bm.td.y[i] == 1
-      bs.z[i] = rand(Truncated(Normal(bs.fhat[i]), 0, Inf))
+      bs.z[i] = rand(truncated(Normal(bs.fhat[i]), 0, Inf))
     else
-      bs.z[i] = rand(Truncated(Normal(bs.fhat[i]), -Inf, 0))
+      bs.z[i] = rand(truncated(Normal(bs.fhat[i]), -Inf, 0))
     end
   end
 end
@@ -346,7 +346,27 @@ end
 
 function draws!(bs::BartState, bm::BartModel)
   counts = varcounts(bs.ensemble.trees, bm)
-  bs.s = rand(Dirichlet(0.5 / bm.td.p .+ counts))
+  bs.s = rand(Dirichlet(bm.hypers.shape / bm.td.p .+ counts))
+end
+
+function loglikω(ω, α, log_s, a, b, p)
+  loggamma(α) - p*loggamma(α/p) + α*mean(log_s) + logpdf(Beta(a, b), ω)
+end
+
+function log_sum_exp(x)
+  m = maximum(x)
+  m + log(sum(exp.(x .- m)))
+end
+
+function drawα!(bs::BartState, bm::BartModel)
+  ω = bs.shape / (bs.shape + bm.hypers.scale)
+  log_s = log.(bs.s)
+  grid = collect(LinRange(0, 1, 1001))[2:1001]
+  lωg = [loglikω(g, bs.shape, log_s, bm.hypers.a, bm.hypers.b, bm.td.p) for g in grid]
+  lse = log_sum_exp(lωg)
+  p = exp.(lωg .- lse)
+  new_ω = sample(grid, weights(p))
+  bs.shape = (new_ω / (1-new_ω)) * bm.hypers.scale
 end
 
 ## Log tree posterior: continuous respose

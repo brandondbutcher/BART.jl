@@ -4,7 +4,7 @@ module BART
   using Distributions
   using LinearAlgebra
   using StatsBase
-  using MCMCChains
+  using SpecialFunctions
 
   import DecisionTree
 

@@ -7,7 +7,10 @@ function StatsBase.sample(bs::RegBartState, bm::BartModel)
   @time for s in 1:bm.opts.S
     drawtrees!(bs, bm)
     drawσ!(bs, bm)
-    bm.hypers.sparse ? draws!(bs, bm) : nothing
+    if bm.hypers.sparse
+      draws!(bs, bm)
+      drawα!(bs, bm)
+    end
     if s > bm.opts.nburn
       posterior.mdraws[:,s - bm.opts.nburn] = bs.fhat .+ bm.td.ybar
       posterior.σdraws[s - bm.opts.nburn] = bs.σ
@@ -78,7 +81,10 @@ function StatsBase.sample(bs::ProbitBartState, bm::BartModel)
   posterior = ProbitBartPosterior(bm)
   @time for s in 1:bm.opts.S
     drawtrees!(bs, bm)
-    bm.hypers.sparse ? draws!(bs, bm) : nothing
+    if bm.hypers.sparse
+      draws!(bs, bm)
+      drawα!(bs, bm)
+    end
     if s > bm.opts.nburn
       posterior.mdraws[:,s - bm.opts.nburn] = cdf.(Normal(), bs.fhat)
       posterior.zdraws[:,s - bm.opts.nburn] = bs.z
