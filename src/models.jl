@@ -74,7 +74,7 @@ struct Hypers
   β::Float64
   λmean::Float64
   λfix::Bool
-  sigma_improper::Bool
+  sigma_noninf::Bool
   τ::Float64
   init_leaf::Bool
   init_depth::Vector
@@ -86,19 +86,25 @@ struct Hypers
   group_idx::Vector{Int}
   function Hypers(td::TrainData; m = 50, k = 2,
     ν = 3.0, q = 0.9, α = 0.95, β = 2.0,
-    sigma_improper = false,
+    sigma_noninf = false,
     λmean = 0.1, λfix = false,
     init_leaf = true, init_depth = ones(4),
     sparse = false, shape = 1.0, a = 0.5, b = 1.0,
     group_idx = nothing)
-    δ = 1 / quantile(InverseGamma(ν / 2, ν / (2 * td.σhat^2)), q)
+    if sigma_noninf
+      ϵ = 0.001
+      ν = 2*ϵ
+      δ = 1
+    else
+      δ = 1 / quantile(InverseGamma(ν / 2, ν / (2 * td.σhat^2)), q)
+    end
     if isa(td.y, Vector{Int})
       τ = (3.0 / (k*sqrt(m)))^2
     else
       τ = ((maximum(td.y) - minimum(td.y)) / (2*k*sqrt(m)))^2
     end
     group_idx = isa(group_idx, Nothing) ? collect(1:td.p) : group_idx
-    new(m, k, ν, δ, q, α, β, λmean, λfix, sigma_improper, τ,
+    new(m, k, ν, δ, q, α, β, λmean, λfix, sigma_noninf, τ,
       init_leaf, init_depth, sparse, shape, td.p, a, b, group_idx)
   end
 end
@@ -187,7 +193,8 @@ function RegBartState(bm::BartModel)
       rhat = vec(transpose(S[t]) * rt / bm.td.σhat^2)
       bt[t] = BartTree(trees[t], S[t], SuffStats(size(S[t], 2), Ω, rhat))
     end
-    push!(states, RegBartState(BartEnsemble(bt), yhat, bm.td.σhat, ones(bm.td.p) ./ bm.td.p, bm.hypers.shape))
+    push!(states,
+      RegBartState(BartEnsemble(bt), yhat, bm.td.σhat, ones(bm.td.p) ./ bm.td.p, bm.hypers.shape))
   end
   states
 end
