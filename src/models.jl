@@ -80,10 +80,12 @@ struct Hypers
   init_depth::Vector
   sparse::Bool
   shape::Float64
-  scale::Float64
   a::Float64
   b::Float64
   group_idx::Vector{Int}
+  groups::Vector{Int}
+  group_size::Vector{Int}
+  scale::Int
   function Hypers(td::TrainData; m = 50, k = 2,
     ν = 3.0, q = 0.9, α = 0.95, β = 2.0,
     sigma_noninf = false,
@@ -104,8 +106,12 @@ struct Hypers
       τ = ((maximum(td.y) - minimum(td.y)) / (2*k*sqrt(m)))^2
     end
     group_idx = isa(group_idx, Nothing) ? collect(1:td.p) : group_idx
+    groups = unique(group_idx)
+    group_size = counts(group_idx)
+    scale = length(group_size)
     new(m, k, ν, δ, q, α, β, λmean, λfix, sigma_noninf, τ,
-      init_leaf, init_depth, sparse, shape, td.p, a, b, group_idx)
+      init_leaf, init_depth, sparse, shape, a, b,
+      group_idx, groups, group_size, scale)
   end
 end
 
@@ -194,7 +200,7 @@ function RegBartState(bm::BartModel)
       bt[t] = BartTree(trees[t], S[t], SuffStats(size(S[t], 2), Ω, rhat))
     end
     push!(states,
-      RegBartState(BartEnsemble(bt), yhat, bm.td.σhat, ones(bm.td.p) ./ bm.td.p, bm.hypers.shape))
+      RegBartState(BartEnsemble(bt), yhat, bm.td.σhat, ones(bm.hypers.scale) ./ bm.hypers.scale, bm.hypers.shape))
   end
   states
 end
@@ -237,7 +243,8 @@ function ProbitBartState(bm::BartModel)
       rhat = vec(transpose(S[t]) * rt)
       bt.trees[t] = BartTree(trees[t], S[t], SuffStats(size(S[t], 2), Ω, rhat))
     end
-    push!(states, ProbitBartState(bt, yhat, z, 1, ones(bm.td.p) ./ bm.td.p, bm.hypers.shape))
+    push!(states,
+      ProbitBartState(bt, yhat, z, 1, ones(bm.hypers.scale) ./ bm.hypers.scale, bm.hypers.shape))
   end
   states
 end

@@ -164,12 +164,17 @@ function mll(rt::Vector{Float64}, ss::SuffStats, bs::BartState, bm::BartModel)
   mll
 end
 
+function sample_var(bs::BartState, bm::BartModel)
+  gs = sample(bm.hypers.groups, weights(bs.s))
+  sample(findall(bm.hypers.group_idx .== gs))
+end
+
 ## Conduct a Birth proposal
 function birthproposal!(bt::BartTree, rt::Vector{Float64}, bs::BartState, bm::BartModel)
   leaves = leafnodes(bt.tree.root)
   index = rand(1:length(leaves))
   leaf = leaves[index]
-  newvar = sample(1:bm.td.p, weights(bs.s))
+  newvar = sample_var(bs, bm)
   newcut = drawcut(leaf, newvar, bt.tree, bm)
   branch = Branch(newvar, newcut, Leaf(0.0), Leaf(0.0))
   goesleft = bt.S[:,index] .* probleft(bm.td.X, branch, bt.tree)
@@ -341,7 +346,8 @@ end
 
 function draws!(bs::BartState, bm::BartModel)
   counts = varcounts(bs.ensemble.trees, bm)
-  bs.s = rand(Dirichlet(bm.hypers.shape / bm.td.p .+ counts))
+  gc = [sum(counts[findall(bm.hypers.group_idx .== g)]) for g in bm.hypers.groups]
+  bs.s = rand(Dirichlet(bm.hypers.shape / bm.hypers.scale .+ gc))
 end
 
 function loglikω(ω, α, log_s, a, b, p)
@@ -359,8 +365,8 @@ function drawα!(bs::BartState, bm::BartModel)
   grid = collect(LinRange(0, 1, 1001))[2:1001]
   lωg = [loglikω(g, bs.shape, log_s, bm.hypers.a, bm.hypers.b, bm.td.p) for g in grid]
   lse = log_sum_exp(lωg)
-  p = exp.(lωg .- lse)
-  new_ω = sample(grid, weights(p))
+  prob = exp.(lωg .- lse)
+  new_ω = sample(grid, weights(prob))
   bs.shape = (new_ω / (1-new_ω)) * bm.hypers.scale
 end
 
