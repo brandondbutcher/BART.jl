@@ -54,7 +54,7 @@ struct Opts
   ndraw::Int
   nthin::Int
   S::Int64
-  function Opts(;nchains = 4, nburn = 500, ndraw = 500, nthin = 1)
+  function Opts(;nchains = 4, nburn = 2500, ndraw = 2500, nthin = 1)
     new(nchains, nburn, ndraw, nthin, nburn + ndraw)
   end
 end
