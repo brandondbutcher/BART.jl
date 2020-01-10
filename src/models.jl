@@ -257,12 +257,12 @@ end
 abstract type BartPosterior end
 
 struct RegBartPosterior <: BartPosterior
-  mdraws::Matrix{Float64}
+  # mdraws::Matrix{Float64}
   σdraws::Vector{Float64}
   treedraws::Vector{Vector{Tree}}
   function RegBartPosterior(bm::BartModel)
     new(
-      Matrix{Float64}(undef, bm.td.n, bm.opts.ndraw),
+      # Matrix{Float64}(undef, bm.td.n, bm.opts.ndraw),
       Vector{Float64}(undef, bm.opts.ndraw),
       Vector{Vector{Tree}}(undef, bm.opts.ndraw)
     )
@@ -270,12 +270,12 @@ struct RegBartPosterior <: BartPosterior
 end
 
 struct ProbitBartPosterior <: BartPosterior
-  mdraws::Matrix{Float64}
+  # mdraws::Matrix{Float64}
   zdraws::Matrix{Float64}
   treedraws::Vector{Vector{Tree}}
   function ProbitBartPosterior(bm::BartModel)
     new(
-      Matrix{Float64}(undef, bm.td.n, bm.opts.ndraw),
+      # Matrix{Float64}(undef, bm.td.n, bm.opts.ndraw),
       Matrix{Float64}(undef, bm.td.n, bm.opts.ndraw),
       Vector{Vector{Tree}}(undef, bm.opts.ndraw)
     )
@@ -287,7 +287,7 @@ abstract type BartChain end
 struct RegBartChain <: BartChain
   bm::BartModel
   init_trees
-  mdraws::Array{Float64}
+  # mdraws::Array{Float64}
   treedraws::Array{Vector{Tree}}
   σdraws::Array{Float64}
 end
@@ -295,7 +295,7 @@ end
 struct ProbitBartChain <: BartChain
   bm::BartModel
   init_trees
-  mdraws::Array{Float64}
+  # mdraws::Array{Float64}
   zdraws::Array{Float64}
   treedraws::Array{Vector{Tree}}
 end
