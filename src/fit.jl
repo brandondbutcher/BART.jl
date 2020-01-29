@@ -26,7 +26,7 @@ end
 function StatsBase.fit(BartModel, X::Matrix{Float64}, y::Vector{Float64}, opts = Opts(); hyperags...)
   bm = BartModel(X, y, opts; hyperags...)
   states = RegBartState(bm)
-  init_trees = map(state -> Tree[bt.tree for bt in state.ensemble.trees], states)
+  init_trees = deepcopy(map(state -> Tree[bt.tree for bt in state.ensemble.trees], states))
   post = pmap(bs -> sample(bs, bm), states)
   println("Processing chains...")
   RegBartChain(
@@ -100,7 +100,7 @@ end
 function StatsBase.fit(BartModel, X::Matrix{Float64}, y::Vector{Int}, opts = Opts(); hyperags...)
   bm = BartModel(X, y, opts; hyperags...)
   states = ProbitBartState(bm)
-  init_trees = map(state -> Tree[bt.tree for bt in state.ensemble.trees], states)
+  init_trees = deepcopy(map(state -> Tree[bt.tree for bt in state.ensemble.trees], states))
   post = pmap(bs -> sample(bs, bm), states)
   println("Processing chains...")
   ProbitBartChain(

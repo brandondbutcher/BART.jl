@@ -27,15 +27,11 @@ function StatsBase.predict(trees::Vector{Tree}, X::Matrix{Float64})
 end
 
 function StatsBase.predict(bc::RegBartChain, X::Matrix{Float64})
-  X = StatsBase.transform(bc.bm.td.dt, transpose(X))
-  X = Matrix(transpose(X))
   treedraws = reshape(bc.treedraws, size(bc.treedraws, 1)*size(bc.treedraws, 3))
-  reduce(hcat, pmap(t -> predict(t, X), treedraws)) .+ bc.info.ybar
+  reduce(hcat, pmap(t -> predict(t, X), treedraws)) .+ bm.td.ybar
 end
 
 function StatsBase.predict(bc::ProbitBartChain, X::Matrix{Float64})
-  X = StatsBase.transform(bc.bm.td.dt, transpose(X))
-  X = Matrix(transpose(X))
   treedraws = reshape(bc.treedraws, size(bc.treedraws, 1)*size(bc.treedraws, 3))
   reduce(hcat, pmap(t -> cdf.(Normal(), predict(t, X)), treedraws))
 end
