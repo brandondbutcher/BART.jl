@@ -28,7 +28,7 @@ end
 
 function StatsBase.predict(bc::RegBartChain, X::Matrix{Float64})
   treedraws = reshape(bc.treedraws, size(bc.treedraws, 1)*size(bc.treedraws, 3))
-  reduce(hcat, pmap(t -> predict(t, X), treedraws)) .+ bm.td.ybar
+  reduce(hcat, pmap(t -> predict(t, X), treedraws)) .+ bc.bm.td.ybar
 end
 
 function StatsBase.predict(bc::ProbitBartChain, X::Matrix{Float64})
