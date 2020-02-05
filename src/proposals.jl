@@ -403,7 +403,7 @@ function mpost(c)
   trees, τ, X = c
   M = reduce(hcat, [leafprob(X, tree) for tree in trees])
   sig = [1 + τ*dot(M[i,:], M[i,:]) for i in 1:size(M, 1)]
-  ym = sum(log.(cdf.(Normal.(0, sig), 0).^ytrain .* ccdf.(Normal.(0, sig), 0).^(1 .- ytrain)))
+  ym = sum(log.(cdf.(Normal.(0, sig), 0)))
   ltp = sum([log_tree_prior(tree, post.bm) for tree in trees])
   ym + ltp
 end
