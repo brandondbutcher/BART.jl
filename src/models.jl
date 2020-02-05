@@ -296,6 +296,6 @@ struct ProbitBartChain <: BartChain
   bm::BartModel
   init_trees
   # mdraws::Array{Float64}
-  zdraws::Array{Float64}
+  # zdraws::Array{Float64}
   treedraws::Array{Vector{Tree}}
 end

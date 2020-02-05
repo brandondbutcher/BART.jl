@@ -391,10 +391,24 @@ function log_tree_post(bc::RegBartChain)
 end
 
 ## Log tree posterior: binary response
-function log_tree_post(bc::ProbitBartChain)
-  S = size(bc.treedraws, 1)*size(bc.treedraws, 3)
-  treedraws = reshape(bc.treedraws, S)
-  zdraws = reshape(bc.zdraws, bc.bm.td.n, S)
-  c = [[bc.bm, treedraws[l], 1.0, zdraws[:,l]] for l in 1:S]
-  pmap(log_tree_post, c)
+# function log_tree_post(bc::ProbitBartChain)
+#   S = size(bc.treedraws, 1)*size(bc.treedraws, 3)
+#   treedraws = reshape(bc.treedraws, S)
+#   zdraws = reshape(bc.zdraws, bc.bm.td.n, S)
+#   c = [[bc.bm, treedraws[l], 1.0, zdraws[:,l]] for l in 1:S]
+#   pmap(log_tree_post, c)
+# end
+
+function mpost(c)
+  trees, τ, X = c
+  M = reduce(hcat, [leafprob(X, tree) for tree in trees])
+  sig = [1 + τ*dot(M[i,:], M[i,:]) for i in 1:size(M, 1)]
+  ym = sum(log.(cdf.(Normal.(0, sig), 0).^ytrain .* ccdf.(Normal.(0, sig), 0).^(1 .- ytrain)))
+  ltp = sum([log_tree_prior(tree, post.bm) for tree in trees])
+  ym + ltp
+end
+
+function log_tree_post(bc::BART.ProbitBartChain)
+  treedraws = reshape(bc.treedraws, size(bc.treedraws, 1)*size(bc.treedraws, 3))
+  pmap(mpost, [[trees, bc.bm.hypers.τ, bc.bm.td.X] for trees in treedraws])
 end
