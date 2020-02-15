@@ -257,7 +257,7 @@ end
 abstract type BartPosterior end
 
 struct RegBartPosterior <: BartPosterior
-  # mdraws::Matrix{Float64}
+  sdraws::Matrix{Float64}
   σdraws::Vector{Float64}
   treedraws::Vector{Vector{Tree}}
   function RegBartPosterior(bm::BartModel)
@@ -270,7 +270,7 @@ struct RegBartPosterior <: BartPosterior
 end
 
 struct ProbitBartPosterior <: BartPosterior
-  # mdraws::Matrix{Float64}
+  sdraws::Matrix{Float64}
   zdraws::Matrix{Float64}
   treedraws::Vector{Vector{Tree}}
   function ProbitBartPosterior(bm::BartModel)
