@@ -12,7 +12,7 @@ function StatsBase.sample(bs::RegBartState, bm::BartModel)
       drawα!(bs, bm)
     end
     if s > bm.opts.nburn
-      posterior.s[:,s - bm.opts.nburn] = bs.s
+      posterior.sdraws[:,s - bm.opts.nburn] = bs.s
       posterior.σdraws[s - bm.opts.nburn] = bs.σ
       posterior.treedraws[s - bm.opts.nburn] = [deepcopy(t.tree) for t in bs.ensemble.trees]
     end
@@ -32,7 +32,7 @@ function StatsBase.fit(BartModel, X::Matrix{Float64}, y::Vector{Float64}, opts =
   RegBartChain(
     bm,
     init_trees,
-    reshape(reduce(hcat, [chain.s for chain in post]), bm.td.p, bm.opts.ndraw, bm.opts.nchains),
+    reshape(reduce(hcat, [chain.sdraws for chain in post]), bm.td.p, bm.opts.ndraw, bm.opts.nchains),
     reshape(reduce(vcat, [chain.treedraws for chain in post]), bm.opts.ndraw, 1, bm.opts.nchains),
     reshape(reduce(vcat, [chain.σdraws for chain in post]), bm.opts.ndraw, 1, bm.opts.nchains)
   )
@@ -63,8 +63,8 @@ function update(post::RegBartChain, ndraw::Int)
   RegBartChain(
     BartModel(bm.hypers, Opts(ndraw = ndraw + post.bm.opts.ndraw, nburn = post.bm.opts.nburn), bm.td),
     post.init_trees,
-    hcat(post.mdraws,
-      reshape(reduce(hcat, [chain.mdraws for chain in newdraws]), bm.td.p, bm.opts.ndraw, bm.opts.nchains)),
+    hcat(post.sdraws,
+      reshape(reduce(hcat, [chain.sdraws for chain in newdraws]), bm.td.p, bm.opts.ndraw, bm.opts.nchains)),
     vcat(post.treedraws,
       reshape(reduce(vcat, [chain.treedraws for chain in newdraws]), bm.opts.ndraw, 1, bm.opts.nchains)),
     vcat(post.σdraws,
@@ -86,7 +86,7 @@ function StatsBase.sample(bs::ProbitBartState, bm::BartModel)
       drawα!(bs, bm)
     end
     if s > bm.opts.nburn
-      posterior.s[:,s - bm.opts.nburn] = bs.s
+      posterior.sdraws[:,s - bm.opts.nburn] = bs.s
       posterior.treedraws[s - bm.opts.nburn] = [deepcopy(t.tree) for t in bs.ensemble.trees]
     end
     if s % 100 == 0
@@ -105,7 +105,7 @@ function StatsBase.fit(BartModel, X::Matrix{Float64}, y::Vector{Int}, opts = Opt
   ProbitBartChain(
     bm,
     init_trees,
-    reshape(reduce(hcat, [chain.s for chain in post]), bm.td.pn, bm.opts.ndraw, bm.opts.nchains),
+    reshape(reduce(hcat, [chain.sdraws for chain in post]), bm.td.pn, bm.opts.ndraw, bm.opts.nchains),
     reshape(reduce(vcat, [chain.treedraws for chain in post]), bm.opts.ndraw, 1, bm.opts.nchains)
   )
 end
@@ -138,7 +138,7 @@ function update(post::ProbitBartChain, ndraw::Int)
   ProbitBartChain(
     BartModel(bm.hypers, Opts(ndraw = ndraw + post.bm.opts.ndraw, nburn = post.bm.opts.nburn), bm.td),
     post.init_trees,
-    hcat(post.mdraws,
+    hcat(post.sdraws,
       reshape(reduce(hcat, [chain.s for chain in newdraws]), bm.td.p, bm.opts.ndraw, bm.opts.nchains)),
     vcat(post.treedraws,
       reshape(reduce(vcat, [chain.treedraws for chain in newdraws]), bm.opts.ndraw, 1, bm.opts.nchains))

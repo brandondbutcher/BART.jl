@@ -287,7 +287,7 @@ abstract type BartChain end
 struct RegBartChain <: BartChain
   bm::BartModel
   init_trees
-  s::Array{Float64}
+  sdraws::Array{Float64}
   treedraws::Array{Vector{Tree}}
   σdraws::Array{Float64}
 end
@@ -295,6 +295,6 @@ end
 struct ProbitBartChain <: BartChain
   bm::BartModel
   init_trees
-  s::Array{Float64}
+  sdraws::Array{Float64}
   treedraws::Array{Vector{Tree}}
 end
