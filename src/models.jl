@@ -7,7 +7,7 @@ struct TrainData
   p::Int
   xmin::Matrix{Float64}
   xmax::Matrix{Float64}
-  dt::ZScoreTransform{Float64}
+  # dt::ZScoreTransform{Float64}
   X::Matrix{Float64}
   ybar::Float64
   y::AbstractVector
@@ -28,7 +28,7 @@ function TrainData(X::Matrix{Float64}, y::Vector{Float64})
   # X = Matrix(transpose(X))
   xmin = minimum(X, dims = 1)
   xmax = maximum(X, dims = 1)
-  TrainData(n, p, xmin, xmax, dt, X, ybar, y, σhat)
+  TrainData(n, p, xmin, xmax, X, ybar, y, σhat)
 end
 
 function TrainData(X::Matrix{Float64}, y::Vector{Int})
@@ -40,7 +40,7 @@ function TrainData(X::Matrix{Float64}, y::Vector{Int})
   xmin = minimum(X, dims = 1)
   xmax = maximum(X, dims = 1)
   ybar = mean(y)
-  TrainData(n, p, xmin, xmax, dt, X, ybar, y, 1.0)
+  TrainData(n, p, xmin, xmax, X, ybar, y, 1.0)
 end
 
 
