@@ -23,7 +23,7 @@ function TrainData(X::Matrix{Float64}, y::Vector{Float64})
   yhat = Q * Q' * y
   r = y - yhat
   σhat = p >= n ? std(y) : sqrt(dot(r, r) / (n - p))
-  dt = fit(ZScoreTransform, transpose(X))
+  # dt = fit(ZScoreTransform, transpose(X))
   # X = StatsBase.transform(dt, transpose(X))
   # X = Matrix(transpose(X))
   xmin = minimum(X, dims = 1)
@@ -34,7 +34,7 @@ end
 function TrainData(X::Matrix{Float64}, y::Vector{Int})
   n = length(y)
   p = size(X, 2)
-  dt = fit(ZScoreTransform, transpose(X))
+  # dt = fit(ZScoreTransform, transpose(X))
   # X = StatsBase.transform(dt, transpose(X))
   # X = Matrix(transpose(X))
   xmin = minimum(X, dims = 1)
