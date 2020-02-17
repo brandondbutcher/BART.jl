@@ -165,8 +165,9 @@ function mll(rt::Vector{Float64}, ss::SuffStats, bs::BartState, bm::BartModel)
 end
 
 function sample_var(bs::BartState, bm::BartModel)
-  gs = sample(bm.hypers.groups, weights(bs.s))
+  gs = sample(bm.hypers.groups, weights(exp.(bs.s)))
   sample(findall(bm.hypers.group_idx .== gs))
+  # sample(1:bm.td.p, weights(exp.(bs.s)))
 end
 
 ## Conduct a Birth proposal
@@ -344,14 +345,29 @@ function varcounts(trees::Vector{BartTree}, bm::BartModel)
   vec(sum(reduce(hcat, [varcount(bt.tree, bm) for bt in trees]), dims = 2))
 end
 
-function draws!(bs::BartState, bm::BartModel)
-  counts = varcounts(bs.ensemble.trees, bm)
-  gc = [sum(counts[findall(bm.hypers.group_idx .== g)]) for g in bm.hypers.groups]
-  bs.s = rand(Dirichlet(bm.hypers.shape / bm.hypers.scale .+ gc))
-end
-
-function loglikω(ω, α, log_s, a, b, p)
-  loggamma(α) - p*loggamma(α/p) + α*mean(log_s) + logpdf(Beta(a, b), ω)
+function rlgam(shape)
+  if shape >= 0.1
+    return log(rand(Gamma(shape, 1)))
+  else
+    a = shape
+    L = 1.0/a- 1.0;
+    w = exp(-1.0) * a / (1.0 - a)
+    ww = 1.0 / (1.0 + w)
+    z = 0.0
+    cond = true
+    while cond
+      U = rand()
+      if (U <= ww)
+        z = -log(U / ww);
+      else
+        z = log(rand()) / L
+      end
+      eta = z >= 0 ? -z : log(w)  + log(L) + L * z
+      h = -z - exp(-z / a);
+      cond = h - eta > log(rand())
+    end
+    return -z/a
+  end
 end
 
 function log_sum_exp(x)
@@ -359,15 +375,36 @@ function log_sum_exp(x)
   m + log(sum(exp.(x .- m)))
 end
 
+function draws!(bs::BartState, bm::BartModel)
+  counts = varcounts(bs.ensemble.trees, bm)
+  gc = [sum(counts[findall(bm.hypers.group_idx .== g)]) for g in bm.hypers.groups]
+  shapes = bs.shape / bm.hypers.scale .+ gc
+  # bs.s = rand(Dirichlet(shapes))
+  # logs = rlgam.(shapes)
+  # logs = logs .- log_sum_exp(logs)
+  # bs.s = exp.(logs)
+  y = log.(rand.(Gamma.(shapes .+ 1, 1)))
+  z = log.(rand(length(shapes))) ./ shapes
+  logs = y + z
+  logs = logs .- log_sum_exp(logs)
+  bs.s = logs
+end
+
+function loglikω(ω, log_s, a, b, p)
+  aω = p * (ω/(1-ω))
+  loggamma(aω) - p*loggamma(aω/p) + aω*mean(log_s) + logpdf(Beta(a, b), ω)
+end
+
 function drawα!(bs::BartState, bm::BartModel)
   ω = bs.shape / (bs.shape + bm.hypers.scale)
-  log_s = log.(bs.s)
-  grid = collect(LinRange(0, 1, 1001))[2:1001]
-  lωg = [loglikω(g, bs.shape, log_s, bm.hypers.a, bm.hypers.b, bm.td.p) for g in grid]
+  # log_s = [shape < 1e-100 ? log(1e-100) : log.(shape) for shape in bs.s]
+  grid = collect(1:1000) ./ 1001
+  lωg = [loglikω(g, bs.s, bm.hypers.a, bm.hypers.b, bm.hypers.scale) for g in grid]
   lse = log_sum_exp(lωg)
   prob = exp.(lωg .- lse)
   new_ω = sample(grid, weights(prob))
   bs.shape = (new_ω / (1-new_ω)) * bm.hypers.scale
+  # println(bs.shape)
 end
 
 ## Log tree posterior: continuous respose

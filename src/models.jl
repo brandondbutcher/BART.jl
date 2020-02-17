@@ -262,7 +262,7 @@ struct RegBartPosterior <: BartPosterior
   treedraws::Vector{Vector{Tree}}
   function RegBartPosterior(bm::BartModel)
     new(
-      Matrix{Float64}(undef, bm.td.p, bm.opts.ndraw),
+      Matrix{Float64}(undef, bm.hypers.scale, bm.opts.ndraw),
       Vector{Float64}(undef, bm.opts.ndraw),
       Vector{Vector{Tree}}(undef, bm.opts.ndraw)
     )
