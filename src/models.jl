@@ -275,7 +275,7 @@ struct ProbitBartPosterior <: BartPosterior
   treedraws::Vector{Vector{Tree}}
   function ProbitBartPosterior(bm::BartModel)
     new(
-      Matrix{Float64}(undef, bm.td.p, bm.opts.ndraw),
+      Matrix{Float64}(undef, bm.hypers.scale, bm.opts.ndraw),
       Matrix{Float64}(undef, bm.td.n, bm.opts.ndraw),
       Vector{Vector{Tree}}(undef, bm.opts.ndraw)
     )
