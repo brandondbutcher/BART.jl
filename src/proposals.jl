@@ -175,6 +175,7 @@ function birthproposal!(bt::BartTree, rt::Vector{Float64}, bs::BartState, bm::Ba
   leaves = leafnodes(bt.tree.root)
   index = rand(1:length(leaves))
   leaf = leaves[index]
+
   newvar = sample_var(bs, bm)
   newcut = drawcut(leaf, newvar, bt.tree, bm)
   branch = Branch(newvar, newcut, Leaf(0.0), Leaf(0.0))
@@ -201,6 +202,7 @@ function birthproposal!(bt::BartTree, rt::Vector{Float64}, bs::BartState, bm::Ba
   end
 end
 
+
 ## The log ratio of the transition probabilities for a Death proposal
 function log_death_trans(bt::BartTree, S_prime::Matrix{Float64})
   denomr = birthprob(S_prime) / length(onlyparents(bt.tree))
@@ -226,6 +228,7 @@ function deathbranch!(branch::Branch, tree::Tree)
       parentnode.right = Leaf(0.0)
     end
   end
+
 end
 
 ## Conduct a Death proposal
@@ -345,30 +348,30 @@ function varcounts(trees::Vector{BartTree}, bm::BartModel)
   vec(sum(reduce(hcat, [varcount(bt.tree, bm) for bt in trees]), dims = 2))
 end
 
-function rlgam(shape)
-  if shape >= 0.1
-    return log(rand(Gamma(shape, 1)))
-  else
-    a = shape
-    L = 1.0/a- 1.0;
-    w = exp(-1.0) * a / (1.0 - a)
-    ww = 1.0 / (1.0 + w)
-    z = 0.0
-    cond = true
-    while cond
-      U = rand()
-      if (U <= ww)
-        z = -log(U / ww);
-      else
-        z = log(rand()) / L
-      end
-      eta = z >= 0 ? -z : log(w)  + log(L) + L * z
-      h = -z - exp(-z / a);
-      cond = h - eta > log(rand())
-    end
-    return -z/a
-  end
-end
+# function rlgam(shape)
+#   if shape >= 0.1
+#     return log(rand(Gamma(shape, 1)))
+#   else
+#     a = shape
+#     L = 1.0/a- 1.0;
+#     w = exp(-1.0) * a / (1.0 - a)
+#     ww = 1.0 / (1.0 + w)
+#     z = 0.0
+#     cond = true
+#     while cond
+#       U = rand()
+#       if (U <= ww)
+#         z = -log(U / ww);
+#       else
+#         z = log(rand()) / L
+#       end
+#       eta = z >= 0 ? -z : log(w)  + log(L) + L * z
+#       h = -z - exp(-z / a);
+#       cond = h - eta > log(rand())
+#     end
+#     return -z/a
+#   end
+# end
 
 function log_sum_exp(x)
   m = maximum(x)
@@ -404,11 +407,12 @@ function drawα!(bs::BartState, bm::BartModel)
   prob = exp.(lωg .- lse)
   new_ω = sample(grid, weights(prob))
   bs.shape = (new_ω / (1-new_ω)) * bm.hypers.scale
+  # bs.shape = bm.hypers.shape
   # println(bs.shape)
 end
 
 ## Log tree posterior: continuous respose
-function log_tree_post(c::Array)
+function ptd(c::Array)
   bm, trees, σ, y = c
   S = reduce(hcat, [leafprob(bm.td.X, tree) for tree in trees])
   Σ = Symmetric(σ^2*I + bm.hypers.τ*S*S')
@@ -419,12 +423,12 @@ function log_tree_post(c::Array)
   -2*(mll + ltp + llp + lσp)
 end
 
-function log_tree_post(bc::RegBartChain)
+function ptd(bc::RegBartChain)
   S = size(bc.treedraws, 1)*size(bc.treedraws, 3)
   treedraws = reshape(bc.treedraws, S)
   σdraws = reshape(bc.σdraws, S)
   c = [[bc.bm, treedraws[l], σdraws[l], bc.bm.td.y] for l in 1:S]
-  pmap(log_tree_post, c)
+  pmap(ptd, c)
 end
 
 ## Log tree posterior: binary response
@@ -436,7 +440,7 @@ end
 #   pmap(log_tree_post, c)
 # end
 
-function mpost(c)
+function _ptd(c)
   trees, bm = c
   M = reduce(hcat, [leafprob(bm.td.X, tree) for tree in trees])
   sig = [1 + bm.hypers.τ*dot(M[i,:], M[i,:]) for i in 1:size(M, 1)]
@@ -445,7 +449,7 @@ function mpost(c)
   -2*(ym + ltp)
 end
 
-function log_tree_post(bc::BART.ProbitBartChain)
+function ptd(bc::BART.ProbitBartChain)
   treedraws = reshape(bc.treedraws, size(bc.treedraws, 1)*size(bc.treedraws, 3))
-  pmap(mpost, [[trees, bc.bm] for trees in treedraws])
+  pmap(_ptd, [[trees, bc.bm] for trees in treedraws])
 end

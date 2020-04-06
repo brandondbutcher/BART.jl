@@ -298,3 +298,32 @@ struct ProbitBartChain <: BartChain
   sdraws::Array{Float64}
   treedraws::Array{Vector{Tree}}
 end
+
+struct SurvBartChain <: BartChain
+  bm::BartModel
+  time::Vector{Float64}
+  event::Vector{Int}
+  init_trees
+  sdraws::Array{Float64}
+  treedraws::Array{Vector{Tree}}
+  Sdraws::Array{Float64}
+end
+
+
+###############################################################################
+##### MCMCChains
+###############################################################################
+
+function MCMCChains.Chains(bc::Union{ProbitBartChain,SurvBartChain})
+  atd = mapslices(td -> map(x -> mean(depth.(x)), td), bc.treedraws, dims = 3)
+  mpost = reshape(ptd(bc), bc.bm.opts.ndraw, 1, bc.bm.opts.nchains)
+  monitor = hcat(mpost, atd)
+  Chains(mpost, ["PTD", "ATD"])
+end
+
+function MCMCChains.Chains(bc::RegBartChain)
+  atd = mapslices(td -> map(x -> mean(depth.(x)), td), bc.treedraws, dims = 3)
+  mpost = reshape(ptd(bc), bc.bm.opts.ndraw, 1, bc.bm.opts.nchains)
+  monitor = hcat(bc.σdraws, mpost, atd)
+  Chains(monitor, ["sigma", "PTD", "ATD"])
+end

@@ -3,6 +3,7 @@ module BART
   using Distributed
   using Distributions
   using LinearAlgebra
+  using MCMCChains
   using StatsBase
   using SpecialFunctions
 
@@ -16,6 +17,7 @@ module BART
 
   export
     BartModel,
+    Chains,
     Hypers,
     Opts,
     TrainData
@@ -23,7 +25,7 @@ module BART
   export
     depth,
     fit,
-    log_tree_post,
+    ptd,
     predict,
     update
 
