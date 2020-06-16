@@ -72,6 +72,7 @@ struct Hypers
   q::Float64
   α::Float64
   β::Float64
+  hard::Bool
   λmean::Float64
   λfix::Bool
   sigma_noninf::Bool
@@ -88,15 +89,17 @@ struct Hypers
   scale::Int
   function Hypers(td::TrainData; m = 50, k = 2,
     ν = 3.0, q = 0.9, α = 0.95, β = 2.0,
-    sigma_noninf = false,
-    λmean = 0.1, λfix = false,
+    sigma_noninf = true,
+    hard = true, λmean = 0.1, λfix = false,
     init_leaf = true, init_depth = ones(4),
     sparse = false, shape = 1.0, a = 0.5, b = 1.0,
     group_idx = nothing)
     if sigma_noninf
-      ϵ = 0.001
-      ν = 2*ϵ
-      δ = 1
+      # ϵ = 0.001
+      # ν = 2*ϵ
+      # δ = 1
+      ν = 0
+      δ = 0
     else
       δ = 1 / quantile(InverseGamma(ν / 2, ν / (2 * td.σhat^2)), q)
     end
@@ -105,11 +108,15 @@ struct Hypers
     else
       τ = ((maximum(td.y) - minimum(td.y)) / (2*k*sqrt(m)))^2
     end
+    if hard
+      λfix = true
+      λmean = 1/10000
+    end
     group_idx = isa(group_idx, Nothing) ? collect(1:td.p) : group_idx
     groups = unique(group_idx)
     group_size = counts(group_idx)
     scale = length(group_size)
-    new(m, k, ν, δ, q, α, β, λmean, λfix, sigma_noninf, τ,
+    new(m, k, ν, δ, q, α, β, hard, λmean, λfix, sigma_noninf, τ,
       init_leaf, init_depth, sparse, shape, a, b,
       group_idx, groups, group_size, scale)
   end
