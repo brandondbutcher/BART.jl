@@ -33,7 +33,7 @@ function StatsBase.fit(BartModel, X::Matrix{Float64}, y::Vector{Float64}, opts =
   RegBartChain(
     bm,
     init_trees,
-    reshape(reduce(hcat, [chain.sdraws for chain in post]), bm.hypers.scale, bm.opts.ndraw, bm.opts.nchains),
+    reshape(reduce(hcat, [chain.sdraws for chain in post]), bm.td.p, bm.opts.ndraw, bm.opts.nchains),
     reshape(reduce(vcat, [chain.treedraws for chain in post]), bm.opts.ndraw, 1, bm.opts.nchains),
     reshape(reduce(vcat, [chain.σdraws for chain in post]), bm.opts.ndraw, 1, bm.opts.nchains)
   )
@@ -65,7 +65,7 @@ function update(post::RegBartChain, ndraw::Int)
     BartModel(bm.hypers, Opts(ndraw = ndraw + post.bm.opts.ndraw, nburn = post.bm.opts.nburn), bm.td),
     post.init_trees,
     hcat(post.sdraws,
-      reshape(reduce(hcat, [chain.sdraws for chain in newdraws]), bm.hypers.scale, bm.opts.ndraw, bm.opts.nchains)),
+      reshape(reduce(hcat, [chain.sdraws for chain in newdraws]), bm.td.p, bm.opts.ndraw, bm.opts.nchains)),
     vcat(post.treedraws,
       reshape(reduce(vcat, [chain.treedraws for chain in newdraws]), bm.opts.ndraw, 1, bm.opts.nchains)),
     vcat(post.σdraws,
@@ -107,7 +107,7 @@ function StatsBase.fit(BartModel, X::Matrix{Float64}, y::Vector{Int}, opts = Opt
   ProbitBartChain(
     bm,
     init_trees,
-    reshape(reduce(hcat, [chain.sdraws for chain in post]), bm.hypers.scale, bm.opts.ndraw, bm.opts.nchains),
+    reshape(reduce(hcat, [chain.sdraws for chain in post]), bm.td.p, bm.opts.ndraw, bm.opts.nchains),
     reshape(reduce(vcat, [chain.treedraws for chain in post]), bm.opts.ndraw, 1, bm.opts.nchains)
   )
 end
@@ -192,7 +192,7 @@ function StatsBase.fit(BartModel, X::Matrix{Float64}, time::Vector{Float64}, eve
     time,
     event,
     init_trees,
-    reshape(reduce(hcat, [chain.sdraws for chain in post]), bm.hypers.scale, bm.opts.ndraw, bm.opts.nchains),
+    reshape(reduce(hcat, [chain.sdraws for chain in post]), bm.td.p, bm.opts.ndraw, bm.opts.nchains),
     reshape(reduce(vcat, [chain.treedraws for chain in post]), bm.opts.ndraw, 1, bm.opts.nchains),
     sdraws
   )

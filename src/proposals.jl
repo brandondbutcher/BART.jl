@@ -165,9 +165,7 @@ function mll(rt::Vector{Float64}, ss::SuffStats, bs::BartState, bm::BartModel)
 end
 
 function sample_var(bs::BartState, bm::BartModel)
-  gs = sample(bm.hypers.groups, weights(exp.(bs.s)))
-  sample(findall(bm.hypers.group_idx .== gs))
-  # sample(1:bm.td.p, weights(exp.(bs.s)))
+  sample(1:bm.td.p, weights(exp.(bs.s)))
 end
 
 ## Conduct a Birth proposal
@@ -379,9 +377,9 @@ function log_sum_exp(x)
 end
 
 function draws!(bs::BartState, bm::BartModel)
-  counts = varcounts(bs.ensemble.trees, bm)
-  gc = [sum(counts[findall(bm.hypers.group_idx .== g)]) for g in bm.hypers.groups]
-  shapes = bs.shape / bm.hypers.scale .+ gc
+  vc = varcounts(bs.ensemble.trees, bm)
+  # gc = [sum(counts[findall(bm.hypers.group_idx .== g)]) for g in bm.hypers.groups]
+  shapes = bs.shape / bm.td.p .+ vc
   # bs.s = rand(Dirichlet(shapes))
   # logs = rlgam.(shapes)
   # logs = logs .- log_sum_exp(logs)
@@ -399,14 +397,13 @@ function loglikω(ω, log_s, a, b, p)
 end
 
 function drawα!(bs::BartState, bm::BartModel)
-  ω = bs.shape / (bs.shape + bm.hypers.scale)
-  # log_s = [shape < 1e-100 ? log(1e-100) : log.(shape) for shape in bs.s]
+  ω = bs.shape / (bs.shape + bm.td.p)
   grid = collect(1:1000) ./ 1001
-  lωg = [loglikω(g, bs.s, bm.hypers.a, bm.hypers.b, bm.hypers.scale) for g in grid]
+  lωg = [loglikω(g, bs.s, bm.hypers.a, bm.hypers.b, bm.td.p) for g in grid]
   lse = log_sum_exp(lωg)
   prob = exp.(lωg .- lse)
   new_ω = sample(grid, weights(prob))
-  bs.shape = (new_ω / (1-new_ω)) * bm.hypers.scale
+  bs.shape = (new_ω / (1-new_ω)) * bm.td.p
   # bs.shape = bm.hypers.shape
   # println(bs.shape)
 end

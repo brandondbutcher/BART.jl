@@ -83,17 +83,19 @@ struct Hypers
   shape::Float64
   a::Float64
   b::Float64
-  group_idx::Vector{Int}
-  groups::Vector{Int}
-  group_size::Vector{Int}
-  scale::Int
+  # group_idx::Vector{Int}
+  # groups::Vector{Int}
+  # group_size::Vector{Int}
+  # scale::Int
   function Hypers(td::TrainData; m = 50, k = 2,
     ν = 3.0, q = 0.9, α = 0.95, β = 2.0,
     sigma_noninf = true,
     hard = true, λmean = 0.1, λfix = false,
     init_trees = "leaf", init_depth = ones(4),
-    sparse = false, shape = 1.0, a = 0.5, b = 1.0,
-    group_idx = nothing)
+    sparse = false, shape = 1.0, a = 0.5, b = 1.0
+    # ,
+    # group_idx = nothing
+    )
     if !(init_trees in ["leaf", "rf"])
       throw(ArgumentError("init_tree options are leaf or rf"))
     end
@@ -112,13 +114,15 @@ struct Hypers
       λfix = true
       λmean = 1/10000
     end
-    group_idx = isa(group_idx, Nothing) ? collect(1:td.p) : group_idx
-    groups = unique(group_idx)
-    group_size = counts(group_idx)
-    scale = length(group_size)
+    # group_idx = isa(group_idx, Nothing) ? collect(1:td.p) : group_idx
+    # groups = unique(group_idx)
+    # group_size = counts(group_idx)
+    # scale = length(group_size)
     new(m, k, ν, δ, q, α, β, hard, λmean, λfix, sigma_noninf, τ,
-      init_trees, init_depth, sparse, shape, a, b,
-      group_idx, groups, group_size, scale)
+      init_trees, init_depth, sparse, shape, a, b
+      # ,
+      # group_idx, groups, group_size, scale
+      )
   end
 end
 
@@ -207,7 +211,7 @@ function RegBartState(bm::BartModel)
       bt[t] = BartTree(trees[t], S[t], SuffStats(size(S[t], 2), Ω, rhat))
     end
     push!(states,
-      RegBartState(BartEnsemble(bt), yhat, bm.td.σhat, ones(bm.hypers.scale) ./ bm.hypers.scale, bm.hypers.shape))
+      RegBartState(BartEnsemble(bt), yhat, bm.td.σhat, ones(bm.td.p) ./ bm.td.p, bm.hypers.shape))
   end
   states
 end
@@ -251,7 +255,7 @@ function ProbitBartState(bm::BartModel)
       bt.trees[t] = BartTree(trees[t], S[t], SuffStats(size(S[t], 2), Ω, rhat))
     end
     push!(states,
-      ProbitBartState(bt, yhat, z, 1, ones(bm.hypers.scale) ./ bm.hypers.scale, bm.hypers.shape))
+      ProbitBartState(bt, yhat, z, 1, ones(bm.td.p) ./ bm.td.p, bm.hypers.shape))
   end
   states
 end
@@ -269,7 +273,7 @@ struct RegBartPosterior <: BartPosterior
   treedraws::Vector{Vector{Tree}}
   function RegBartPosterior(bm::BartModel)
     new(
-      Matrix{Float64}(undef, bm.hypers.scale, bm.opts.ndraw),
+      Matrix{Float64}(undef, bm.td.p, bm.opts.ndraw),
       Vector{Float64}(undef, bm.opts.ndraw),
       Vector{Vector{Tree}}(undef, bm.opts.ndraw)
     )
@@ -282,7 +286,7 @@ struct ProbitBartPosterior <: BartPosterior
   treedraws::Vector{Vector{Tree}}
   function ProbitBartPosterior(bm::BartModel)
     new(
-      Matrix{Float64}(undef, bm.hypers.scale, bm.opts.ndraw),
+      Matrix{Float64}(undef, bm.td.p, bm.opts.ndraw),
       Matrix{Float64}(undef, bm.td.n, bm.opts.ndraw),
       Vector{Vector{Tree}}(undef, bm.opts.ndraw)
     )
