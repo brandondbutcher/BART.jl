@@ -77,7 +77,7 @@ struct Hypers
   λfix::Bool
   sigma_noninf::Bool
   τ::Float64
-  init_leaf::Bool
+  init_trees::String
   init_depth::Vector
   sparse::Bool
   shape::Float64
@@ -91,13 +91,13 @@ struct Hypers
     ν = 3.0, q = 0.9, α = 0.95, β = 2.0,
     sigma_noninf = true,
     hard = true, λmean = 0.1, λfix = false,
-    init_leaf = true, init_depth = ones(4),
+    init_trees = "leaf", init_depth = ones(4),
     sparse = false, shape = 1.0, a = 0.5, b = 1.0,
     group_idx = nothing)
+    if !(init_trees in ["leaf", "rf"])
+      throw(ArgumentError("init_tree options are leaf or rf"))
+    end
     if sigma_noninf
-      # ϵ = 0.001
-      # ν = 2*ϵ
-      # δ = 1
       ν = 0
       δ = 0
     else
@@ -117,7 +117,7 @@ struct Hypers
     group_size = counts(group_idx)
     scale = length(group_size)
     new(m, k, ν, δ, q, α, β, hard, λmean, λfix, sigma_noninf, τ,
-      init_leaf, init_depth, sparse, shape, a, b,
+      init_trees, init_depth, sparse, shape, a, b,
       group_idx, groups, group_size, scale)
   end
 end
@@ -185,7 +185,7 @@ end
 function RegBartState(bm::BartModel)
   states = RegBartState[]
   for c in 1:bm.opts.nchains
-    if bm.hypers.init_leaf
+    if bm.hypers.init_trees == "leaf"
       trees = [Tree(Leaf(0.0), bm.hypers.λmean) for _ in 1:bm.hypers.m]
     else
       rf = DecisionTree.fit!(
@@ -229,7 +229,7 @@ function ProbitBartState(bm::BartModel)
     bm.td.y
   )
   for c in 1:bm.opts.nchains
-    if bm.hypers.init_leaf
+    if bm.hypers.init_trees == "leaf"
       trees = [Tree(Leaf(0.0), bm.hypers.λmean) for _ in 1:bm.hypers.m]
     else
       rf = DecisionTree.fit!(
